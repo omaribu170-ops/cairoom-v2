@@ -54,10 +54,25 @@ import {
     Calendar,
     User,
 } from 'lucide-react';
-import { StaffMember, Task, TaskStatus } from '@/types/database';
+import { TaskStatus } from '@/types/database';
+
+// Local types for mock data (avoiding strict database types for demo)
+interface MockStaffMember {
+    id: string;
+    user_id: string;
+    shift_start: string;
+    shift_end: string;
+    national_id_image: string | null;
+    address: string | null;
+    salary: number;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+    user: { full_name: string; phone: string };
+}
 
 // بيانات تجريبية للموظفين
-const mockStaff: (StaffMember & { user: { full_name: string; phone: string } })[] = [
+const mockStaff: MockStaffMember[] = [
     {
         id: '1',
         user_id: 'u1',
@@ -99,8 +114,23 @@ const mockStaff: (StaffMember & { user: { full_name: string; phone: string } })[
     },
 ];
 
+// Local type for mock tasks
+interface MockTask {
+    id: string;
+    title: string;
+    description: string | null;
+    assigned_to: string;
+    deadline: string;
+    status: TaskStatus;
+    completed_at: string | null;
+    created_by: string;
+    created_at: string;
+    updated_at: string;
+    assignee: { full_name: string };
+}
+
 // بيانات تجريبية للمهام
-const mockTasks: (Task & { assignee: { full_name: string } })[] = [
+const mockTasks: MockTask[] = [
     {
         id: '1',
         title: 'ترتيب طاولات المنطقة أ',
