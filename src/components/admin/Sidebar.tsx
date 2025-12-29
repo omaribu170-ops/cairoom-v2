@@ -25,6 +25,7 @@ import {
     ChevronRight,
     Menu,
     X,
+    Play,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -32,57 +33,62 @@ import { Button } from '@/components/ui/button';
 const menuItems = [
     {
         title: 'لوحة التحكم',
-        href: '/admin/dashboard',
+        href: '/dashboard',
         icon: LayoutDashboard,
     },
     {
-        title: 'الطاولات والجلسات',
-        href: '/admin/tables',
+        title: 'الطاولات',
+        href: '/tables',
         icon: Table2,
     },
     {
+        title: 'الجلسات',
+        href: '/sessions',
+        icon: Play,
+    },
+    {
         title: 'الأعضاء',
-        href: '/admin/members',
+        href: '/members',
         icon: Users,
     },
     {
         title: 'المخزن',
-        href: '/admin/inventory',
+        href: '/inventory',
         icon: Package,
     },
     {
         title: 'الموظفين والمهام',
-        href: '/admin/staff',
+        href: '/staff',
         icon: UserCog,
     },
     {
         title: 'الإحصائيات المالية',
-        href: '/admin/statistics',
+        href: '/statistics',
         icon: BarChart3,
     },
     {
         title: 'العمليات',
-        href: '/admin/operations',
+        href: '/operations',
         icon: ClipboardCheck,
     },
     {
         title: 'الترفيه',
-        href: '/admin/entertainment',
+        href: '/entertainment',
         icon: Gamepad2,
     },
     {
         title: 'التسويق',
-        href: '/admin/marketing',
+        href: '/marketing',
         icon: Megaphone,
     },
     {
         title: 'الإعدادات',
-        href: '/admin/settings',
+        href: '/settings',
         icon: Settings,
     },
     {
         title: 'الراديو الداخلي',
-        href: '/admin/radio',
+        href: '/radio',
         icon: Radio,
     },
 ];
@@ -123,7 +129,7 @@ export function AdminSidebar() {
             >
                 {/* الشعار */}
                 <div className="p-6 border-b border-white/10">
-                    <Link href="/admin/dashboard" className="flex items-center gap-3">
+                    <Link href="/dashboard" className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl gradient-button flex items-center justify-center">
                             <span className="text-xl font-bold">C</span>
                         </div>

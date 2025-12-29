@@ -1,457 +1,266 @@
 /* =================================================================
-   CAIROOM - Tables & Sessions Management Page
-   صفحة إدارة الطاولات والجلسات
+   CAIROOM - Tables Management Page
+   صفحة إدارة الطاولات فقط (بدون الجلسات)
    ================================================================= */
 
 'use client';
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TableCard } from '@/components/admin/TableCard';
-import { TableModal } from '@/components/admin/TableModal';
-import { StartSessionModal } from '@/components/admin/StartSessionModal';
-import { PaymentModal } from '@/components/admin/PaymentModal';
-import { Table, Session, Order, SessionAttendee } from '@/types/database';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import {
-    Plus,
-    Search,
-    Grid3X3,
-    List,
-    Table2,
-    Clock,
-    Filter,
-} from 'lucide-react';
+import { formatCurrency, cn } from '@/lib/utils';
+import { Search, Plus, Users, Eye, Edit, Trash2, ImageIcon, AlertTriangle } from 'lucide-react';
+
+// نوع الطاولة
+interface TableData {
+    id: string;
+    name: string;
+    capacity_min: number;
+    capacity_max: number;
+    price_per_hour_per_person: number;
+    image_url: string | null;
+    status: 'available' | 'busy' | 'maintenance';
+}
 
 // بيانات تجريبية للطاولات
-const mockTables: Table[] = [
-    {
-        id: '1',
-        name: 'طاولة ١',
-        image_url: null,
-        capacity_min: 1,
-        capacity_max: 4,
-        price_per_hour_per_person: 25,
-        status: 'available',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-    },
-    {
-        id: '2',
-        name: 'طاولة ٢',
-        image_url: null,
-        capacity_min: 1,
-        capacity_max: 4,
-        price_per_hour_per_person: 25,
-        status: 'busy',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-    },
-    {
-        id: '3',
-        name: 'طاولة ٣',
-        image_url: null,
-        capacity_min: 2,
-        capacity_max: 6,
-        price_per_hour_per_person: 20,
-        status: 'available',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-    },
-    {
-        id: '4',
-        name: 'غرفة الاجتماعات',
-        image_url: null,
-        capacity_min: 4,
-        capacity_max: 12,
-        price_per_hour_per_person: 50,
-        status: 'busy',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-    },
-    {
-        id: '5',
-        name: 'ركن القهوة',
-        image_url: null,
-        capacity_min: 1,
-        capacity_max: 2,
-        price_per_hour_per_person: 15,
-        status: 'available',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-    },
-    {
-        id: '6',
-        name: 'طاولة ٤',
-        image_url: null,
-        capacity_min: 2,
-        capacity_max: 6,
-        price_per_hour_per_person: 20,
-        status: 'available',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-    },
+const initialTables: TableData[] = [
+    { id: '1', name: 'طاولة ١', capacity_min: 2, capacity_max: 4, price_per_hour_per_person: 25, image_url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400', status: 'available' },
+    { id: '2', name: 'طاولة ٢', capacity_min: 2, capacity_max: 6, price_per_hour_per_person: 25, image_url: 'https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=400', status: 'busy' },
+    { id: '3', name: 'طاولة ٣', capacity_min: 4, capacity_max: 8, price_per_hour_per_person: 20, image_url: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=400', status: 'available' },
+    { id: '4', name: 'غرفة الاجتماعات', capacity_min: 6, capacity_max: 12, price_per_hour_per_person: 30, image_url: 'https://images.unsplash.com/photo-1517502884422-41eaead166d4?w=400', status: 'available' },
+    { id: '5', name: 'ركن القهوة', capacity_min: 1, capacity_max: 4, price_per_hour_per_person: 15, image_url: null, status: 'maintenance' },
+    { id: '6', name: 'طاولة ٤', capacity_min: 2, capacity_max: 4, price_per_hour_per_person: 25, image_url: 'https://images.unsplash.com/photo-1462826303086-329426d1aef5?w=400', status: 'available' },
 ];
 
-// جلسات تجريبية
-const mockSessions: Record<string, Session> = {
-    '2': {
-        id: 'session-1',
-        table_id: '2',
-        start_time: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // ٢ ساعة
-        end_time: null,
-        status: 'active',
-        total_amount: 0,
-        paid_amount: 0,
-        payment_method: null,
-        attendees: [
-            { user_id: null, name: 'أحمد', phone: '01012345678' },
-            { user_id: null, name: 'محمد' },
-            { user_id: null, name: 'علي' },
-        ],
-        guest_count: 3,
-        notes: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-    },
-    '4': {
-        id: 'session-2',
-        table_id: '4',
-        start_time: new Date(Date.now() - 45 * 60 * 1000).toISOString(), // ٤٥ دقيقة
-        end_time: null,
-        status: 'active',
-        total_amount: 0,
-        paid_amount: 0,
-        payment_method: null,
-        attendees: [
-            { user_id: null, name: 'شركة ABC' },
-        ],
-        guest_count: 8,
-        notes: 'اجتماع عمل',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-    },
-};
-
-// طلبات تجريبية
-const mockOrders: Order[] = [
-    {
-        id: 'order-1',
-        session_id: 'session-1',
-        product_id: 'p1',
-        quantity: 3,
-        price_at_time: 15,
-        status: 'delivered',
-        created_at: new Date().toISOString(),
-        product: { id: 'p1', name: 'قهوة تركي', type: 'drink', price: 15, cost_price: 5, stock_quantity: 100, image_url: null, is_active: true, created_at: '', updated_at: '' },
-    },
-    {
-        id: 'order-2',
-        session_id: 'session-1',
-        product_id: 'p2',
-        quantity: 2,
-        price_at_time: 25,
-        status: 'delivered',
-        created_at: new Date().toISOString(),
-        product: { id: 'p2', name: 'ساندويتش جبنة', type: 'food', price: 25, cost_price: 12, stock_quantity: 30, image_url: null, is_active: true, created_at: '', updated_at: '' },
-    },
-];
+const statusLabels = { available: 'متاحة', busy: 'مشغولة', maintenance: 'صيانة' };
+const statusStyles = { available: 'status-available', busy: 'status-busy', maintenance: 'status-pending' };
 
 export default function TablesPage() {
-    const [tables, setTables] = useState<Table[]>(mockTables);
-    const [sessions, setSessions] = useState<Record<string, Session>>(mockSessions);
+    const [tables, setTables] = useState<TableData[]>(initialTables);
     const [searchQuery, setSearchQuery] = useState('');
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-    const [filterStatus, setFilterStatus] = useState<'all' | 'available' | 'busy'>('all');
+    const [viewModal, setViewModal] = useState<TableData | null>(null);
+    const [editModal, setEditModal] = useState<TableData | null>(null);
+    const [deleteModal, setDeleteModal] = useState<TableData | null>(null);
+    const [addModal, setAddModal] = useState(false);
 
-    // نوافذ منبثقة
-    const [tableModalOpen, setTableModalOpen] = useState(false);
-    const [selectedTableForEdit, setSelectedTableForEdit] = useState<Table | null>(null);
-    const [startSessionModalOpen, setStartSessionModalOpen] = useState(false);
-    const [selectedTableForSession, setSelectedTableForSession] = useState<Table | null>(null);
-    const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-    const [selectedSessionForPayment, setSelectedSessionForPayment] = useState<Session | null>(null);
-    const [selectedTableForPayment, setSelectedTableForPayment] = useState<Table | null>(null);
-
-    // تصفية الطاولات
-    const filteredTables = tables.filter((table) => {
-        const matchesSearch = table.name.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesStatus = filterStatus === 'all' || table.status === filterStatus;
-        return matchesSearch && matchesStatus;
+    // نموذج الطاولة الجديدة/المعدلة
+    const [formData, setFormData] = useState<Omit<TableData, 'id' | 'status'>>({
+        name: '', capacity_min: 2, capacity_max: 4, price_per_hour_per_person: 25, image_url: null
     });
 
-    // إحصائيات سريعة
-    const stats = {
-        total: tables.length,
-        available: tables.filter((t) => t.status === 'available').length,
-        busy: tables.filter((t) => t.status === 'busy').length,
-        activeSessions: Object.keys(sessions).length,
-    };
+    const filteredTables = tables.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    // معالجات الأحداث
-    const handleAddTable = () => {
-        setSelectedTableForEdit(null);
-        setTableModalOpen(true);
-    };
-
-    const handleEditTable = (tableId: string) => {
-        const table = tables.find((t) => t.id === tableId);
-        if (table) {
-            setSelectedTableForEdit(table);
-            setTableModalOpen(true);
-        }
-    };
-
-    const handleSaveTable = (data: {
-        name: string;
-        capacity_min: number;
-        capacity_max: number;
-        price_per_hour_per_person: number;
-        image_url?: string;
-    }) => {
-        if (selectedTableForEdit) {
-            // تعديل
-            setTables((prev) =>
-                prev.map((t) =>
-                    t.id === selectedTableForEdit.id
-                        ? { ...t, ...data, updated_at: new Date().toISOString() }
-                        : t
-                )
-            );
-            toast.success('تم تعديل الطاولة بنجاح');
-        } else {
-            // إضافة جديدة
-            const newTable: Table = {
-                id: `table-${Date.now()}`,
-                ...data,
-                image_url: data.image_url || null,
-                status: 'available',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-            };
-            setTables((prev) => [...prev, newTable]);
-            toast.success('تم إضافة الطاولة بنجاح');
-        }
-        setTableModalOpen(false);
-    };
-
-    const handleStartSession = (tableId: string) => {
-        const table = tables.find((t) => t.id === tableId);
-        if (table) {
-            setSelectedTableForSession(table);
-            setStartSessionModalOpen(true);
-        }
-    };
-
-    const handleConfirmStartSession = (data: {
-        guestCount: number;
-        attendees: Array<{ name: string; phone?: string }>;
-        notes?: string;
-    }) => {
-        if (!selectedTableForSession) return;
-
-        const newSession: Session = {
-            id: `session-${Date.now()}`,
-            table_id: selectedTableForSession.id,
-            start_time: new Date().toISOString(),
-            end_time: null,
-            status: 'active',
-            total_amount: 0,
-            paid_amount: 0,
-            payment_method: null,
-            attendees: data.attendees.map((a) => ({ user_id: null, ...a })),
-            guest_count: data.guestCount,
-            notes: data.notes || null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        };
-
-        setSessions((prev) => ({ ...prev, [selectedTableForSession.id]: newSession }));
-        setTables((prev) =>
-            prev.map((t) =>
-                t.id === selectedTableForSession.id ? { ...t, status: 'busy' as const } : t
-            )
-        );
-
-        toast.success(`تم بدء الجلسة في ${selectedTableForSession.name}`);
-        setStartSessionModalOpen(false);
-        setSelectedTableForSession(null);
-    };
-
-    const handleEndSession = (sessionId: string) => {
-        // البحث عن الجلسة والطاولة
-        const tableId = Object.keys(sessions).find((key) => sessions[key].id === sessionId);
-        if (!tableId) return;
-
-        const session = sessions[tableId];
-        const table = tables.find((t) => t.id === tableId);
-        if (!table) return;
-
-        setSelectedSessionForPayment(session);
-        setSelectedTableForPayment(table);
-        setPaymentModalOpen(true);
-    };
-
-    const handleConfirmPayment = (data: {
-        paymentMethod: string;
-        paidAmount: number;
-    }) => {
-        if (!selectedSessionForPayment || !selectedTableForPayment) return;
-
-        // حذف الجلسة وتحديث الطاولة
-        setSessions((prev) => {
-            const updated = { ...prev };
-            delete updated[selectedTableForPayment.id];
-            return updated;
+    // فتح نافذة التعديل
+    const handleOpenEdit = (table: TableData) => {
+        setFormData({
+            name: table.name,
+            capacity_min: table.capacity_min,
+            capacity_max: table.capacity_max,
+            price_per_hour_per_person: table.price_per_hour_per_person,
+            image_url: table.image_url,
         });
+        setEditModal(table);
+    };
 
-        setTables((prev) =>
-            prev.map((t) =>
-                t.id === selectedTableForPayment.id ? { ...t, status: 'available' as const } : t
-            )
-        );
+    // حفظ التعديلات
+    const handleSaveEdit = () => {
+        if (!editModal || !formData.name.trim()) return;
+        setTables(tables.map(t => t.id === editModal.id ? { ...t, ...formData } : t));
+        toast.success('تم حفظ التعديلات');
+        setEditModal(null);
+    };
 
-        toast.success('تم إنهاء الجلسة وتسجيل الدفع بنجاح');
-        setPaymentModalOpen(false);
-        setSelectedSessionForPayment(null);
-        setSelectedTableForPayment(null);
+    // إضافة طاولة جديدة
+    const handleAddTable = () => {
+        if (!formData.name.trim()) return;
+        const newTable: TableData = {
+            id: `table-${Date.now()}`,
+            ...formData,
+            status: 'available',
+        };
+        setTables([...tables, newTable]);
+        toast.success('تم إضافة الطاولة');
+        setAddModal(false);
+        setFormData({ name: '', capacity_min: 2, capacity_max: 4, price_per_hour_per_person: 25, image_url: null });
+    };
+
+    // حذف الطاولة
+    const handleDelete = () => {
+        if (!deleteModal) return;
+        setTables(tables.filter(t => t.id !== deleteModal.id));
+        toast.success('تم حذف الطاولة');
+        setDeleteModal(null);
+    };
+
+    // فتح نافذة الإضافة
+    const handleOpenAdd = () => {
+        setFormData({ name: '', capacity_min: 2, capacity_max: 4, price_per_hour_per_person: 25, image_url: null });
+        setAddModal(true);
     };
 
     return (
         <div className="space-y-6">
-            {/* العنوان والإحصائيات */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            {/* العنوان */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold gradient-text">الطاولات والجلسات</h1>
-                    <p className="text-muted-foreground mt-1">إدارة طاولات المكان والجلسات النشطة</p>
+                    <h1 className="text-2xl font-bold gradient-text">إدارة الطاولات</h1>
+                    <p className="text-muted-foreground mt-1">عرض وتعديل وحذف الطاولات</p>
                 </div>
-
-                {/* إحصائيات سريعة */}
-                <div className="flex gap-4">
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-xl glass-card">
-                        <Table2 className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">{stats.total} طاولة</span>
+                <div className="flex gap-3">
+                    <div className="relative w-64">
+                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input placeholder="بحث..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="glass-input pr-10" />
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-xl glass-card">
-                        <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                        <span className="text-sm">{stats.available} فاضية</span>
-                    </div>
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-xl glass-card">
-                        <Clock className="h-4 w-4 text-[#F18A21]" />
-                        <span className="text-sm">{stats.activeSessions} جلسة نشطة</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* شريط الأدوات */}
-            <div className="flex flex-col md:flex-row gap-4">
-                {/* البحث */}
-                <div className="relative flex-1">
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="ابحث عن طاولة..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="glass-input pr-10"
-                    />
-                </div>
-
-                {/* الفلاتر */}
-                <div className="flex gap-2">
-                    <Tabs value={filterStatus} onValueChange={(v) => setFilterStatus(v as typeof filterStatus)}>
-                        <TabsList className="glass-card">
-                            <TabsTrigger value="all">الكل</TabsTrigger>
-                            <TabsTrigger value="available">فاضية</TabsTrigger>
-                            <TabsTrigger value="busy">مشغولة</TabsTrigger>
-                        </TabsList>
-                    </Tabs>
-
-                    {/* وضع العرض */}
-                    <div className="flex gap-1 p-1 rounded-lg glass-card">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className={viewMode === 'grid' ? 'bg-white/10' : ''}
-                            onClick={() => setViewMode('grid')}
-                        >
-                            <Grid3X3 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className={viewMode === 'list' ? 'bg-white/10' : ''}
-                            onClick={() => setViewMode('list')}
-                        >
-                            <List className="h-4 w-4" />
-                        </Button>
-                    </div>
-
-                    {/* زر الإضافة */}
-                    <Button className="gradient-button" onClick={handleAddTable}>
-                        <Plus className="h-4 w-4 ml-2" />
-                        إضافة طاولة
+                    <Button className="gradient-button" onClick={handleOpenAdd}>
+                        <Plus className="h-4 w-4 ml-2" />إضافة طاولة
                     </Button>
                 </div>
             </div>
 
-            {/* شبكة الطاولات */}
-            <div className={
-                viewMode === 'grid'
-                    ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'
-                    : 'space-y-4'
-            }>
+            {/* بطاقات الطاولات */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredTables.map((table) => (
-                    <TableCard
-                        key={table.id}
-                        table={table}
-                        session={sessions[table.id] || null}
-                        onStartSession={handleStartSession}
-                        onEndSession={handleEndSession}
-                        onManage={handleEditTable}
-                    />
+                    <Card key={table.id} className="glass-card-hover overflow-hidden">
+                        {/* صورة الطاولة */}
+                        <div className="h-40 bg-white/5 relative overflow-hidden">
+                            {table.image_url ? (
+                                <img src={table.image_url} alt={table.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                    <ImageIcon className="h-12 w-12 text-white/20" />
+                                </div>
+                            )}
+                            <Badge className={cn('absolute top-3 left-3', statusStyles[table.status])}>{statusLabels[table.status]}</Badge>
+                        </div>
+                        <CardContent className="p-5">
+                            <div className="flex items-start justify-between mb-3">
+                                <div>
+                                    <h3 className="text-lg font-bold">{table.name}</h3>
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                                        <Users className="h-4 w-4" />
+                                        <span>{table.capacity_min}-{table.capacity_max} أشخاص</span>
+                                    </div>
+                                </div>
+                                <div className="text-left">
+                                    <span className="text-lg font-bold gradient-text">{formatCurrency(table.price_per_hour_per_person)}</span>
+                                    <p className="text-xs text-muted-foreground">/ساعة/فرد</p>
+                                </div>
+                            </div>
+                            {/* أزرار الإجراءات */}
+                            <div className="flex gap-2">
+                                <Button size="sm" variant="ghost" className="flex-1 glass-button" onClick={() => setViewModal(table)}>
+                                    <Eye className="h-4 w-4 ml-1" />عرض
+                                </Button>
+                                <Button size="sm" variant="ghost" className="flex-1 glass-button" onClick={() => handleOpenEdit(table)}>
+                                    <Edit className="h-4 w-4 ml-1" />تعديل
+                                </Button>
+                                <Button size="sm" variant="ghost" className="glass-button text-red-400" onClick={() => setDeleteModal(table)}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
                 ))}
             </div>
 
-            {/* رسالة فارغة */}
             {filteredTables.length === 0 && (
-                <Card className="glass-card">
-                    <CardContent className="py-12 text-center">
-                        <Table2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium">مفيش طاولات هنا</h3>
-                        <p className="text-muted-foreground mt-1">
-                            {searchQuery ? 'جرب تبحث بكلمة تانية' : 'اضغط على "إضافة طاولة" عشان تضيف أول طاولة'}
-                        </p>
-                    </CardContent>
+                <Card className="glass-card p-12 text-center">
+                    <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">لا توجد طاولات</p>
                 </Card>
             )}
 
-            {/* النوافذ المنبثقة */}
-            <TableModal
-                open={tableModalOpen}
-                onOpenChange={setTableModalOpen}
-                table={selectedTableForEdit}
-                onSave={handleSaveTable}
-            />
+            {/* نافذة العرض */}
+            <Dialog open={!!viewModal} onOpenChange={() => setViewModal(null)}>
+                <DialogContent className="glass-modal sm:max-w-md">
+                    <DialogHeader><DialogTitle className="gradient-text text-xl">{viewModal?.name}</DialogTitle></DialogHeader>
+                    {viewModal && (
+                        <div className="space-y-4 py-4">
+                            {viewModal.image_url && (
+                                <div className="h-48 rounded-xl overflow-hidden">
+                                    <img src={viewModal.image_url} alt={viewModal.name} className="w-full h-full object-cover" />
+                                </div>
+                            )}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="glass-card p-3"><p className="text-xs text-muted-foreground">السعة</p><p className="font-bold">{viewModal.capacity_min}-{viewModal.capacity_max} أشخاص</p></div>
+                                <div className="glass-card p-3"><p className="text-xs text-muted-foreground">السعر</p><p className="font-bold">{formatCurrency(viewModal.price_per_hour_per_person)}/ساعة/فرد</p></div>
+                            </div>
+                            <div className="glass-card p-3"><p className="text-xs text-muted-foreground">الحالة</p><Badge className={cn('mt-1', statusStyles[viewModal.status])}>{statusLabels[viewModal.status]}</Badge></div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="ghost" className="glass-button" onClick={() => setViewModal(null)}>إغلاق</Button>
+                        <Button className="gradient-button" onClick={() => { setViewModal(null); if (viewModal) handleOpenEdit(viewModal); }}>
+                            <Edit className="h-4 w-4 ml-1" />تعديل
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
-            <StartSessionModal
-                open={startSessionModalOpen}
-                onOpenChange={setStartSessionModalOpen}
-                table={selectedTableForSession}
-                onConfirm={handleConfirmStartSession}
-            />
+            {/* نافذة التعديل */}
+            <Dialog open={!!editModal} onOpenChange={() => setEditModal(null)}>
+                <DialogContent className="glass-modal sm:max-w-md">
+                    <DialogHeader><DialogTitle className="gradient-text text-xl">تعديل الطاولة</DialogTitle></DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2"><Label>اسم الطاولة *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="glass-input" /></div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2"><Label>الحد الأدنى</Label><Input type="number" value={formData.capacity_min} onChange={(e) => setFormData({ ...formData, capacity_min: parseInt(e.target.value) || 1 })} className="glass-input" /></div>
+                            <div className="space-y-2"><Label>الحد الأقصى</Label><Input type="number" value={formData.capacity_max} onChange={(e) => setFormData({ ...formData, capacity_max: parseInt(e.target.value) || 1 })} className="glass-input" /></div>
+                        </div>
+                        <div className="space-y-2"><Label>السعر/ساعة/فرد (ج.م)</Label><Input type="number" value={formData.price_per_hour_per_person} onChange={(e) => setFormData({ ...formData, price_per_hour_per_person: parseInt(e.target.value) || 0 })} className="glass-input" /></div>
+                        <div className="space-y-2"><Label>رابط الصورة</Label><Input value={formData.image_url || ''} onChange={(e) => setFormData({ ...formData, image_url: e.target.value || null })} className="glass-input" placeholder="https://..." /></div>
+                        {formData.image_url && (
+                            <div className="h-32 rounded-xl overflow-hidden bg-white/5">
+                                <img src={formData.image_url} alt="Preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = ''; }} />
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter className="gap-2">
+                        <Button variant="ghost" className="glass-button" onClick={() => setEditModal(null)}>إلغاء</Button>
+                        <Button className="gradient-button" onClick={handleSaveEdit}>حفظ التعديلات</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
-            <PaymentModal
-                open={paymentModalOpen}
-                onOpenChange={setPaymentModalOpen}
-                session={selectedSessionForPayment}
-                table={selectedTableForPayment}
-                orders={selectedSessionForPayment ? mockOrders.filter((o) => o.session_id === selectedSessionForPayment.id) : []}
-                userWalletBalance={150} // مثال: رصيد المحفظة
-                onConfirmPayment={handleConfirmPayment}
-            />
+            {/* نافذة الإضافة */}
+            <Dialog open={addModal} onOpenChange={setAddModal}>
+                <DialogContent className="glass-modal sm:max-w-md">
+                    <DialogHeader><DialogTitle className="gradient-text text-xl">إضافة طاولة جديدة</DialogTitle></DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2"><Label>اسم الطاولة *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="glass-input" placeholder="طاولة ٥" /></div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2"><Label>الحد الأدنى</Label><Input type="number" value={formData.capacity_min} onChange={(e) => setFormData({ ...formData, capacity_min: parseInt(e.target.value) || 1 })} className="glass-input" /></div>
+                            <div className="space-y-2"><Label>الحد الأقصى</Label><Input type="number" value={formData.capacity_max} onChange={(e) => setFormData({ ...formData, capacity_max: parseInt(e.target.value) || 1 })} className="glass-input" /></div>
+                        </div>
+                        <div className="space-y-2"><Label>السعر/ساعة/فرد (ج.م)</Label><Input type="number" value={formData.price_per_hour_per_person} onChange={(e) => setFormData({ ...formData, price_per_hour_per_person: parseInt(e.target.value) || 0 })} className="glass-input" /></div>
+                        <div className="space-y-2"><Label>رابط الصورة (اختياري)</Label><Input value={formData.image_url || ''} onChange={(e) => setFormData({ ...formData, image_url: e.target.value || null })} className="glass-input" placeholder="https://..." /></div>
+                    </div>
+                    <DialogFooter className="gap-2">
+                        <Button variant="ghost" className="glass-button" onClick={() => setAddModal(false)}>إلغاء</Button>
+                        <Button className="gradient-button" onClick={handleAddTable} disabled={!formData.name.trim()}>إضافة الطاولة</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* نافذة تأكيد الحذف */}
+            <Dialog open={!!deleteModal} onOpenChange={() => setDeleteModal(null)}>
+                <DialogContent className="glass-modal sm:max-w-sm">
+                    <DialogHeader>
+                        <div className="flex justify-center mb-4"><div className="p-4 rounded-full bg-red-500/20"><AlertTriangle className="h-8 w-8 text-red-400" /></div></div>
+                        <DialogTitle className="text-center">هل أنت متأكد؟</DialogTitle>
+                        <DialogDescription className="text-center">سيتم حذف "{deleteModal?.name}" نهائياً ولا يمكن التراجع عن هذا الإجراء.</DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:justify-center">
+                        <Button variant="ghost" className="glass-button" onClick={() => setDeleteModal(null)}>إلغاء</Button>
+                        <Button className="bg-red-500 hover:bg-red-600" onClick={handleDelete}>نعم، احذف</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
