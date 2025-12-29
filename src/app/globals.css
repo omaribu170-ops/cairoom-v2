@@ -1,0 +1,417 @@
+/* =================================================================
+   CAIROOM (Somaida Hub) - Design System
+   RTL | Arabic | Glassmorphism | Egyptian Sa'idi Dialect
+   ================================================================= */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* =================================================================
+   IBM Plex Sans Arabic Font - الخط الأساسي
+   ================================================================= */
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-weight: 100 700;
+  font-style: normal;
+  src: url('https://fonts.gstatic.com/s/ibmplexsansarabic/v12/Qw3CZRtWPQCuHme67tEYUIx3Kh0PHR9N6YNe-w.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+200C-200E, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-weight: 100 700;
+  font-style: normal;
+  src: url('https://fonts.gstatic.com/s/ibmplexsansarabic/v12/Qw3CZRtWPQCuHme67tEYUIx3Kh0PHR9N6YIe.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* =================================================================
+   Theme Configuration - تكوين الثيم
+   ================================================================= */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: 'IBM Plex Sans Arabic', var(--font-geist-sans), sans-serif;
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+/* =================================================================
+   CAIROOM Brand Colors - ألوان العلامة التجارية
+   Gradient: #E63E32 -> #F18A21 -> #F8C033
+   ================================================================= */
+:root {
+  /* Brand Gradient Colors */
+  --cairoom-red: #E63E32;
+  --cairoom-orange: #F18A21;
+  --cairoom-gold: #F8C033;
+  --cairoom-gradient: linear-gradient(90deg, #E63E32 0%, #F18A21 50%, #F8C033 100%);
+
+  /* Glassmorphism Variables */
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+  --glass-blur: 16px;
+
+  /* Base Theme - Light */
+  --radius: 0.75rem;
+  --background: #0f0f0f;
+  --foreground: #fafafa;
+  --card: rgba(255, 255, 255, 0.08);
+  --card-foreground: #fafafa;
+  --popover: rgba(30, 30, 30, 0.95);
+  --popover-foreground: #fafafa;
+  --primary: #F18A21;
+  --primary-foreground: #ffffff;
+  --secondary: rgba(255, 255, 255, 0.1);
+  --secondary-foreground: #fafafa;
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: #a1a1aa;
+  --accent: rgba(241, 138, 33, 0.2);
+  --accent-foreground: #F8C033;
+  --destructive: #E63E32;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: #F18A21;
+
+  /* Chart Colors */
+  --chart-1: #E63E32;
+  --chart-2: #F18A21;
+  --chart-3: #F8C033;
+  --chart-4: #10b981;
+  --chart-5: #3b82f6;
+
+  /* Sidebar */
+  --sidebar: rgba(15, 15, 15, 0.95);
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #F18A21;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(241, 138, 33, 0.15);
+  --sidebar-accent-foreground: #F8C033;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #F18A21;
+}
+
+/* Dark mode is default for CAIROOM - الوضع الداكن هو الافتراضي */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+}
+
+/* =================================================================
+   Base Styles - الأنماط الأساسية
+   ================================================================= */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    direction: rtl;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+    background: linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 50%, #16213e 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+}
+
+/* =================================================================
+   Glassmorphism Components - مكونات الزجاج
+   ================================================================= */
+@layer components {
+
+  /* Glass Card - البطاقة الزجاجية */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 1rem;
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-card-hover {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 1rem;
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+  }
+
+  .glass-card-hover:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+    transform: translateY(-2px);
+    box-shadow:
+      0 12px 40px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+
+  /* Glass Button - الزر الزجاجي */
+  .glass-button {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+  }
+
+  .glass-button:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  /* Gradient Button - زر التدرج */
+  .gradient-button {
+    background: linear-gradient(90deg, #E63E32 0%, #F18A21 50%, #F8C033 100%);
+    color: white;
+    font-weight: 600;
+    border: none;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(241, 138, 33, 0.4);
+  }
+
+  .gradient-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(241, 138, 33, 0.5);
+  }
+
+  /* Gradient Text - نص متدرج */
+  .gradient-text {
+    background: linear-gradient(90deg, #E63E32 0%, #F18A21 50%, #F8C033 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Glass Input - الحقل الزجاجي */
+  .glass-input {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fafafa;
+    transition: all 0.3s ease;
+  }
+
+  .glass-input:focus {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #F18A21;
+    box-shadow: 0 0 0 3px rgba(241, 138, 33, 0.2);
+    outline: none;
+  }
+
+  .glass-input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  /* Status Badges - شارات الحالة */
+  .status-available {
+    @apply bg-emerald-500/20 text-emerald-400 border border-emerald-500/30;
+  }
+
+  .status-busy {
+    @apply bg-red-500/20 text-red-400 border border-red-500/30;
+  }
+
+  .status-pending {
+    @apply bg-yellow-500/20 text-yellow-400 border border-yellow-500/30;
+  }
+
+  /* Sidebar Styles - أنماط الشريط الجانبي */
+  .sidebar-glass {
+    background: rgba(15, 15, 15, 0.8);
+    backdrop-filter: blur(20px);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .sidebar-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fafafa;
+  }
+
+  .sidebar-item.active {
+    background: linear-gradient(90deg, rgba(230, 62, 50, 0.2) 0%, rgba(241, 138, 33, 0.2) 100%);
+    color: #F8C033;
+    border-right: 3px solid #F18A21;
+  }
+
+  /* Table Styles - أنماط الجدول */
+  .glass-table {
+    @apply w-full;
+  }
+
+  .glass-table thead {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .glass-table th {
+    @apply px-4 py-3 text-right text-sm font-medium text-muted-foreground;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-table td {
+    @apply px-4 py-3 text-sm;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .glass-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  /* Modal/Dialog - النافذة المنبثقة */
+  .glass-modal {
+    background: rgba(20, 20, 30, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1.5rem;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Scrollbar - شريط التمرير */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+}
+
+/* =================================================================
+   Animations - الحركات
+   ================================================================= */
+@layer utilities {
+
+  /* Pulse Glow Animation */
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+
+    0%,
+    100% {
+      box-shadow: 0 0 20px rgba(241, 138, 33, 0.3);
+    }
+
+    50% {
+      box-shadow: 0 0 40px rgba(241, 138, 33, 0.6);
+    }
+  }
+
+  /* Gradient Shift Animation */
+  .animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient-shift 3s ease infinite;
+  }
+
+  @keyframes gradient-shift {
+    0% {
+      background-position: 0% 50%;
+    }
+
+    50% {
+      background-position: 100% 50%;
+    }
+
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  /* Float Animation */
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  /* Timer Pulse */
+  .timer-pulse {
+    animation: timer-pulse 1s ease-in-out infinite;
+  }
+
+  @keyframes timer-pulse {
+
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.7;
+    }
+  }
+}
