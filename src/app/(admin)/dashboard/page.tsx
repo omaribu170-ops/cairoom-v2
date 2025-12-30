@@ -34,9 +34,9 @@ const periodLabels: Record<TimePeriod, string> = {
 
 // بيانات تجريبية للقاعات
 const mockHalls = [
-    { id: 'h1', name: 'القاعة الرئيسية', tables: ['1', '2', '3'] },
-    { id: 'h2', name: 'قاعة VIP', tables: ['4', '5'] },
-    { id: 'h3', name: 'الحديقة', tables: ['6'] },
+    { id: 'h1', name: 'القاعة الرئيسية', tables: ['1', '2', '3'], price_per_hour: 200 },
+    { id: 'h2', name: 'قاعة VIP', tables: ['4', '5'], price_per_hour: 350 },
+    { id: 'h3', name: 'الحديقة', tables: ['6'], price_per_hour: 150 },
 ];
 
 // بيانات تجريبية للطاولات
@@ -215,7 +215,7 @@ export default function AdminDashboardPage() {
             tableName: sessionType === 'table' ? (table?.name || '') : tableNames,
             hallId: sessionType === 'hall' ? selectedHall : undefined,
             hallName: sessionType === 'hall' ? hall?.name : undefined,
-            pricePerHour: sessionType === 'table' ? (table?.price_per_hour_per_person || 25) : 50,
+            pricePerHour: sessionType === 'table' ? (table?.price_per_hour_per_person || 25) : (hall?.price_per_hour || 200),
             startTime: new Date().toISOString(),
             members: sessionMembers,
         };
@@ -235,9 +235,12 @@ export default function AdminDashboardPage() {
     };
 
     // حساب إجمالي الجلسة
+    // Table: price × hours × members | Hall: price × hours (flat rate)
     const getSessionTotal = (session: ActiveSession) => {
         const durationHours = (Date.now() - new Date(session.startTime).getTime()) / (1000 * 60 * 60);
-        const timeCost = Math.ceil(durationHours * session.pricePerHour * session.members.length);
+        const timeCost = session.type === 'hall'
+            ? Math.ceil(durationHours * session.pricePerHour)  // Hall: flat pricing
+            : Math.ceil(durationHours * session.pricePerHour * session.members.length);  // Table: per member
         const ordersCost = session.members.reduce((sum, m) => sum + m.orders.reduce((s, o) => s + (o.price * o.quantity), 0), 0);
         return { timeCost, ordersCost, total: timeCost + ordersCost };
     };

@@ -37,7 +37,7 @@ const menuItems = [
         icon: LayoutDashboard,
     },
     {
-        title: 'الطاولات',
+        title: 'الطاولات والقاعات',
         href: '/tables',
         icon: Table2,
     },
