@@ -24,13 +24,10 @@ import {
 } from 'lucide-react';
 import { SessionTimer } from '@/components/admin/SessionTimer';
 import { toast } from 'sonner';
-import { getHallsWithTables } from '@/actions/halls';
-import { getProducts } from '@/actions/products';
-import { getActiveSessions, createSession, endSession, addSessionOrder } from '@/actions/sessions';
-import { searchMembers, createMember } from '@/actions/members';
 import { ActiveSessionsList } from '@/components/admin/ActiveSessionsList';
 import { Hall, Table, Product, User, ActiveSession, SessionMember } from '@/types/database';
 import { calculateDuration, getSessionTotal } from '@/lib/sessionUtils';
+import { useMock } from '@/context/MockContext';
 
 // Helper to map DB session to UI ActiveSession
 // (This will be implemented inside the component or outside)
@@ -63,125 +60,25 @@ const getStatsByPeriod = (period: TimePeriod) => {
     return data[period];
 };
 
-const MOCK_HALLS: Hall[] = [
-    { id: 'h1', name: 'القاعة الرئيسية', capacity_min: 10, capacity_max: 50, price_per_hour: 200, price_first_hour: 250, created_at: '', updated_at: '' },
-    { id: 'h2', name: 'قاعة VIP', capacity_min: 6, capacity_max: 20, price_per_hour: 350, price_first_hour: 400, created_at: '', updated_at: '' },
-];
-
-const MOCK_TABLES: Table[] = [
-    { id: '1', name: 'طاولة ١', hall_id: 'h1', capacity_min: 2, capacity_max: 4, price_per_hour_per_person: 25, price_first_hour_per_person: 35, status: 'available', image_url: null, created_at: '', updated_at: '' },
-    { id: '2', name: 'طاولة ٢', hall_id: 'h1', capacity_min: 2, capacity_max: 6, price_per_hour_per_person: 25, price_first_hour_per_person: 35, status: 'busy', image_url: null, created_at: '', updated_at: '' },
-    { id: '3', name: 'طاولة ٣', hall_id: 'h1', capacity_min: 4, capacity_max: 8, price_per_hour_per_person: 20, price_first_hour_per_person: 30, status: 'available', image_url: null, created_at: '', updated_at: '' },
-];
-
-const MOCK_PRODUCTS: Product[] = [
-    { id: 'p1', name: 'قهوة تركي', price: 35, type: 'drink', is_active: true, cost_price: 15, stock_quantity: 100, image_url: null, created_at: '', updated_at: '' },
-    { id: 'p2', name: 'شاي بلبن', price: 25, type: 'drink', is_active: true, cost_price: 10, stock_quantity: 100, image_url: null, created_at: '', updated_at: '' },
-];
-
-const MOCK_SESSIONS: ActiveSession[] = [
-    {
-        id: 's1',
-        type: 'table',
-        tableName: 'طاولة ٢',
-        tableId: '2',
-        pricePerHour: 25,
-        priceFirstHour: 35,
-        startTime: new Date(Date.now() - 45 * 60000).toISOString(),
-        members: [
-            { id: 'u1', name: 'أحمد علي', phone: '01012345678', joinedAt: new Date(Date.now() - 45 * 60000).toISOString(), leftAt: null, orders: [] }
-        ],
-        tableHistory: [{ tableId: '2', tableName: 'طاولة ٢', startTime: new Date(Date.now() - 45 * 60000).toISOString(), pricePerHour: 25 }],
-        hallTableIds: []
-    }
-];
+// Dashboard components removed local mock logic
 
 export default function AdminDashboardPage() {
+    const {
+        halls, setHalls,
+        tables, setTables,
+        products, setProducts,
+        activeSessions, setActiveSessions,
+        members, setMembers
+    } = useMock();
+
     const [timePeriod, setTimePeriod] = useState<TimePeriod>('day');
     const [customDate, setCustomDate] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    // Live Data State
-    const [halls, setHalls] = useState<Hall[]>([]);
-    const [tables, setTables] = useState<Table[]>([]);
-    const [products, setProducts] = useState<Product[]>([]);
-    const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    // Filter Logic for Member Search in Start Session Modal (Local search on mockMembers in original, needs to be updated or removed if we use searchResults)
-    // The original code used `mockMembers`. We should rely on `searchResults` which is populated by `handleMemberSearch`.
-    // We already have `filteredMembers` in the JSX but it wasn't defined in the snippet I read fully (it likely filtered mockMembers).
-    // I will simply use `searchResults` directly in the Start Session modal.
-
-    // Initial Data Fetch
     const refreshData = async () => {
-        try {
-            const [hallsData, productsData, sessionsData] = await Promise.all([
-                getHallsWithTables().catch(() => ({ halls: [], tables: [] })),
-                getProducts().catch(() => []),
-                getActiveSessions().catch(() => [])
-            ]);
-
-            const finalHalls = hallsData.halls.length > 0 ? hallsData.halls : MOCK_HALLS;
-            const finalTables = hallsData.tables.length > 0 ? hallsData.tables : MOCK_TABLES;
-            const finalProducts = productsData.length > 0 ? productsData : MOCK_PRODUCTS;
-
-            setHalls(finalHalls);
-            setTables(finalTables);
-            setProducts(finalProducts);
-
-            // Map DB Sessions to UI ActiveSession
-            const mappedSessions: ActiveSession[] = sessionsData.length > 0 ? sessionsData.map((s: any) => ({
-                id: s.id,
-                type: s.hall_id ? 'hall' : 'table',
-                hallName: s.hall?.name,
-                tableId: s.hall_id || s.table_id, // For UI grouping
-                tableName: s.table?.name || s.hall?.name || (s.table_ids?.length ? `${s.table_ids.length} طاولات` : 'غير معروف'),
-                pricePerHour: s.hall ? s.hall.price_per_hour : (s.table?.price_per_hour_per_person || 0),
-                priceFirstHour: s.hall ? s.hall.price_first_hour : (s.table?.price_first_hour_per_person || null),
-                startTime: s.start_time,
-                members: s.attendees.map((a: any) => ({
-                    id: a.user_id || 'guest',
-                    name: a.name,
-                    phone: '',
-                    joinedAt: a.joined_at || s.start_time,
-                    leftAt: a.left_at,
-                    orders: []
-                })),
-                tableHistory: [], // Not supported in simple schema yet
-                hallTableIds: s.table_ids || []
-            })) : MOCK_SESSIONS;
-
-            // Distribute orders (temporary hack)
-            if (sessionsData.length > 0) {
-                sessionsData.forEach((s: any, idx: number) => {
-                    const session = mappedSessions[idx];
-                    if (session && session.members.length > 0 && s.orders) {
-                        session.members[0].orders = s.orders.map((o: any) => ({
-                            productId: o.product_id,
-                            name: o.product?.name || 'Unknown',
-                            quantity: o.quantity,
-                            price: o.price_at_time
-                        }));
-                    }
-                });
-            }
-
-            setActiveSessions(mappedSessions);
-        } catch (error) {
-            console.error(error);
-            toast.error('فشل تحميل البيانات - تم تفعيل وضع البيانات التجريبية');
-            setHalls(MOCK_HALLS);
-            setTables(MOCK_TABLES);
-            setProducts(MOCK_PRODUCTS);
-            setActiveSessions(MOCK_SESSIONS);
-        } finally {
-            setLoading(false);
-        }
+        // No-op or small delay to simulate refresh if needed, 
+        // but state is now managed globally by MockContext
     };
-
-    useMemo(() => {
-        refreshData();
-    }, []);
 
 
     // Start Session Modal State
@@ -218,8 +115,11 @@ export default function AdminDashboardPage() {
     const handleMemberSearch = async (val: string) => {
         setMemberSearch(val);
         if (val.length > 2) {
-            const res = await searchMembers(val);
-            setSearchResults(res);
+            const filtered = members.filter(m =>
+                m.full_name.toLowerCase().includes(val.toLowerCase()) ||
+                m.phone.includes(val)
+            );
+            setSearchResults(filtered);
         } else {
             setSearchResults([]);
         }
@@ -261,15 +161,26 @@ export default function AdminDashboardPage() {
     const handleAddNewMemberToSession = async () => {
         if (!newMemberName.trim() || !newMemberPhone.trim()) return;
 
-        // التحقق من تكرار رقم الهاتف if we had full list, but server handles it.
-
         try {
-            const newMember = await createMember({
-                name: newMemberName,
+            const newId = Math.random().toString();
+            const newMember: User = {
+                id: newId,
+                full_name: newMemberName,
                 phone: newMemberPhone,
-                gender: newMemberGender
-            });
+                role: 'user',
+                nickname: '',
+                avatar_url: null,
+                email: null,
+                cairoom_wallet_balance: 0,
+                affiliate_balance: 0,
+                referral_code: '',
+                referred_by: null,
+                game_stats: { wins: 0, attended: 0 },
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
 
+            setMembers([newMember, ...members]);
             setSessionMembers([...sessionMembers, { id: newMember.id, name: newMember.full_name, orders: [] }]);
             toast.success(`تم إضافة ${newMemberName} للقاعدة والجلسة`);
             setNewMemberName('');
@@ -315,17 +226,52 @@ export default function AdminDashboardPage() {
         if (sessionType === 'hall' && (!selectedHall || selectedHallTables.length === 0 || sessionMembers.length === 0)) return;
 
         try {
-            await createSession({
-                type: sessionType,
-                tableId: sessionType === 'table' ? selectedTable : undefined,
-                hallId: sessionType === 'hall' ? selectedHall : undefined,
-                hallTableIds: sessionType === 'hall' ? selectedHallTables : undefined,
-                members: sessionMembers.map(m => ({ id: m.id, name: m.name }))
-            });
+            const table = sessionType === 'table' ? tables.find(t => t.id === selectedTable) : null;
+            const hall = sessionType === 'hall' ? halls.find(h => h.id === selectedHall) : null;
 
-            toast.success('تم بدء الجلسة بنجاح');
+            const newSession: ActiveSession = {
+                id: Math.random().toString(),
+                type: sessionType,
+                tableId: selectedTable,
+                tableName: table?.name || hall?.name || 'جلسة',
+                hallName: hall?.name,
+                pricePerHour: sessionType === 'table' ? (table?.price_per_hour_per_person || 0) : (hall?.price_per_hour || 0),
+                priceFirstHour: sessionType === 'table' ? (table?.price_first_hour_per_person || undefined) : (hall?.price_first_hour || undefined),
+                startTime: new Date().toISOString(),
+                members: sessionMembers.map(m => ({
+                    id: m.id,
+                    name: m.name,
+                    phone: members.find(mem => mem.id === m.id)?.phone || '',
+                    joinedAt: new Date().toISOString(),
+                    leftAt: null,
+                    orders: m.orders.map(o => ({
+                        productId: o.productId,
+                        name: o.productName,
+                        quantity: o.quantity,
+                        price: o.price
+                    }))
+                })),
+                tableHistory: sessionType === 'table' ? [{
+                    tableId: selectedTable,
+                    tableName: table?.name || 'طاولة',
+                    startTime: new Date().toISOString(),
+                    pricePerHour: table?.price_per_hour_per_person || 0,
+                    priceFirstHour: table?.price_first_hour_per_person || undefined
+                }] : [],
+                hallTableIds: sessionType === 'hall' ? selectedHallTables : undefined
+            };
+
+            setActiveSessions((prev: ActiveSession[]) => [newSession, ...prev]);
+
+            // Update tables status
+            if (sessionType === 'table') {
+                setTables(tables.map(t => t.id === selectedTable ? { ...t, status: 'busy' } : t));
+            } else {
+                setTables(tables.map(t => selectedHallTables.includes(t.id) ? { ...t, status: 'busy' } : t));
+            }
+
+            toast.success('تم بدء الجلسة بنجاح (وضع التجربة)');
             resetSessionModal();
-            refreshData();
         } catch (e: any) {
             toast.error(e.message || 'حدث خطأ أثناء بدء الجلسة');
         }

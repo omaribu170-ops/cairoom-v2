@@ -36,6 +36,7 @@ export interface Hall {
   capacity_max: number;
   price_per_hour: number;
   price_first_hour?: number | null;
+  image_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -145,6 +146,7 @@ export interface HistorySession {
   totalTimeCost: number;
   totalOrdersCost: number;
   grandTotal: number;
+  paymentMethod?: string;
 }
 
 // ========================= منتجات Products =========================

@@ -26,8 +26,11 @@ import {
     Menu,
     X,
     Play,
+    RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useMock } from '@/context/MockContext';
+import { toast } from 'sonner';
 
 // قائمة الروابط
 const menuItems = [
@@ -97,6 +100,7 @@ export function AdminSidebar() {
     const pathname = usePathname();
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
+    const { resetMockData } = useMock();
 
     return (
         <>
@@ -184,6 +188,27 @@ export function AdminSidebar() {
                             )}
                         />
                         {!isCollapsed && <span className="mr-2">تصغير</span>}
+                    </Button>
+                </div>
+
+                {/* إعادة تعيين البيانات (وضع التجربة) */}
+                <div className="p-4 border-t border-white/10">
+                    <Button
+                        variant="ghost"
+                        onClick={() => {
+                            if (confirm('هل أنت متأكد من إعادة تعيين كافة البيانات التجريبية؟ سيتم مسح كافة الجلسات والتغييرات.')) {
+                                resetMockData();
+                                toast.success('تم إعادة تعيين البيانات بنجاح');
+                                window.location.reload();
+                            }
+                        }}
+                        className={cn(
+                            'w-full glass-button text-amber-400 hover:text-amber-300 hover:bg-amber-500/10',
+                            isCollapsed ? 'justify-center' : 'justify-start'
+                        )}
+                    >
+                        <RefreshCw className="h-5 w-5" />
+                        {!isCollapsed && <span className="mr-2">إعادة تعيين المحاكاة</span>}
                     </Button>
                 </div>
 

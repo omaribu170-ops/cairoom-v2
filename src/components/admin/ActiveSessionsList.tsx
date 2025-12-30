@@ -17,9 +17,9 @@ import {
     Plus, Minus, ShoppingBag
 } from 'lucide-react';
 import { SessionTimer } from '@/components/admin/SessionTimer';
-import { endSession, updateSessionMember, switchSessionTable } from '@/actions/sessions';
-import { ActiveSession, SessionMember, Hall, Table as DbTable, Product, User } from '@/types/database';
+import { ActiveSession, SessionMember, Hall, Table as DbTable, Product, User, HistorySession, TableHistoryEntry, Order } from '@/types/database';
 import { calculateDuration, formatDuration, calculateTimeCost, getMemberBill, getSessionTotal } from '@/lib/sessionUtils';
+import { useMock } from '@/context/MockContext';
 
 interface ActiveSessionsListProps {
     activeSessions: ActiveSession[];
@@ -35,7 +35,7 @@ interface ActiveSessionsListProps {
 
 export function ActiveSessionsList({
     activeSessions,
-    setActiveSessions, // We might not need this if we just rely on refreshData
+    setActiveSessions,
     halls,
     tables,
     products,
@@ -44,6 +44,7 @@ export function ActiveSessionsList({
     onMemberSearch,
     memberSearchValue
 }: ActiveSessionsListProps) {
+    const { setHistorySessions, historySessions, setTables, setMembers, members } = useMock();
     const [activeSubTab, setActiveSubTab] = useState<'all' | 'tables' | 'halls'>('all');
 
     // Modals State
@@ -74,6 +75,7 @@ export function ActiveSessionsList({
     };
 
     const handleCheckCairoomBalance = (userId: string) => {
+        // Mock balance
         setCairoomWalletBalance(Math.floor(Math.random() * 500) + 100);
     };
 
@@ -87,20 +89,40 @@ export function ActiveSessionsList({
         if (paymentMethod === 'cairoom' && cairoomWalletBalance !== null && getSessionTotal(endSessionModal).total > cairoomWalletBalance) return toast.error('الرصيد غير كافي');
 
         try {
-            const sessionData: any = {
+            // Mock End Session Logic
+            const totals = getSessionTotal(endSessionModal);
+            const historyEntry: HistorySession = {
                 id: endSessionModal.id,
-                hall_id: endSessionModal.type === 'hall' ? endSessionModal.tableId : null,
-                table_ids: endSessionModal.hallTableIds,
+                type: endSessionModal.type,
+                hallName: endSessionModal.hallName || '',
+                tablesUsed: endSessionModal.tableHistory.length > 0 ? endSessionModal.tableHistory.map((th: TableHistoryEntry) => th.tableName) : [endSessionModal.tableName],
+                date: new Date().toISOString().split('T')[0],
+                startTime: endSessionModal.startTime,
+                endTime: new Date().toISOString(),
+                totalTimeCost: totals.timeCost,
+                totalOrdersCost: totals.ordersCost,
+                grandTotal: totals.total,
+                members: endSessionModal.members,
+                paymentMethod: paymentMethod
             };
 
-            await endSession(endSessionModal.id, sessionData);
+            // Update Tables status
+            if (endSessionModal.type === 'table') {
+                setTables(tables.map(t => t.id === endSessionModal.tableId ? { ...t, status: 'available' } : t));
+            } else if (endSessionModal.type === 'hall') {
+                const affectedTableIds = endSessionModal.hallTableIds || [];
+                setTables(tables.map(t => affectedTableIds.includes(t.id) ? { ...t, status: 'available' } : t));
+            }
 
-            toast.success(`تم إنهاء الجلسة والدفع عن طريق ${getPaymentLabel(paymentMethod)}`);
+            // Update history and remove from active
+            setHistorySessions([historyEntry, ...historySessions]);
+            setActiveSessions((prev: ActiveSession[]) => prev.filter(s => s.id !== endSessionModal.id));
+
+            toast.success(`تم إنهاء الجلسة والدفع عن طريق ${getPaymentLabel(paymentMethod)} (وضع التجربة)`);
             setEndSessionModal(null);
             setPaymentMethod('cash');
             setPaymentDetails({ cardHolder: '', walletNumber: '', walletOwner: '', cairoomUser: '' });
             setCairoomWalletBalance(null);
-            refreshData();
         } catch (e: any) {
             toast.error(e.message || 'فشل إنهاء الجلسة');
         }
@@ -116,16 +138,19 @@ export function ActiveSessionsList({
         if (paymentMethod === 'cairoom' && cairoomWalletBalance !== null && getMemberBill(member, session.pricePerHour, session.priceFirstHour).total > cairoomWalletBalance) return toast.error('الرصيد غير كافي');
 
         try {
-            await updateSessionMember(session.id, member.id, {
-                left_at: new Date().toISOString()
-            });
+            setActiveSessions((prev: ActiveSession[]) => prev.map(s => {
+                if (s.id !== session.id) return s;
+                return {
+                    ...s,
+                    members: s.members.map(m => m.id === member.id ? { ...m, leftAt: new Date().toISOString() } : m)
+                };
+            }));
 
-            toast.success(`تم إنهاء جلسة ${member.name} والدفع بـ ${getPaymentLabel(paymentMethod)}`);
+            toast.success(`تم إنهاء جلسة ${member.name} والدفع بـ ${getPaymentLabel(paymentMethod)} (وضع التجربة)`);
             setEndMemberModal(null);
             setPaymentMethod('cash');
             setPaymentDetails({ cardHolder: '', walletNumber: '', walletOwner: '', cairoomUser: '' });
             setCairoomWalletBalance(null);
-            refreshData();
         } catch (e: any) {
             toast.error(e.message || 'فشل إنهاء جلسة العضو');
         }
@@ -137,81 +162,118 @@ export function ActiveSessionsList({
         if (!newTable) return;
 
         try {
-            await switchSessionTable(switchTableModal.id, switchTableModal.tableId, newTableId);
-            toast.success(`تم النقل إلى ${newTable.name}`);
+            // Mock Switch Logic
+            setActiveSessions((prev: ActiveSession[]) => prev.map(s => {
+                if (s.id !== switchTableModal.id) return s;
+                return {
+                    ...s,
+                    tableId: newTableId,
+                    tableName: newTable.name,
+                    pricePerHour: newTable.price_per_hour_per_person,
+                    priceFirstHour: newTable.price_first_hour_per_person || undefined,
+                    tableHistory: [
+                        ...s.tableHistory,
+                        {
+                            tableId: newTableId,
+                            tableName: newTable.name,
+                            startTime: new Date().toISOString(),
+                            pricePerHour: newTable.price_per_hour_per_person,
+                            priceFirstHour: newTable.price_first_hour_per_person || undefined
+                        }
+                    ]
+                };
+            }));
+
+            // Update Tables status
+            setTables(tables.map(t => {
+                if (t.id === switchTableModal.tableId) return { ...t, status: 'available' };
+                if (t.id === newTableId) return { ...t, status: 'busy' };
+                return t;
+            }));
+
+            toast.success(`تم النقل إلى ${newTable.name} (وضع التجربة)`);
             setSwitchTableModal(null);
-            refreshData();
         } catch (e: any) {
             toast.error(e.message || 'فشل نقل الطاولة');
         }
     };
 
     const handleUpdateMemberOrder = (memberId: string, productId: string, delta: number) => {
-        // UI optimistic update logic is complex to copy-paste exactly without context of `activeSessions` state setter
-        // For reusable component, ideally we call an action or we update LOCAL state then refresh. 
-        // But the original code updated `activeSessions` state.
-        // We passed `setActiveSessions`.
-
         if (!addOrderModal) return;
         const product = products.find(p => p.id === productId);
         if (!product) return;
 
-        setActiveSessions(prev => prev.map(s => {
+        setActiveSessions((prev: ActiveSession[]) => prev.map(s => {
             if (s.id !== addOrderModal.session.id) return s;
             return {
                 ...s,
                 members: s.members.map(m => {
                     if (m.id !== memberId) return m;
                     const existingOrder = m.orders.find(o => o.productId === productId);
-
                     if (existingOrder) {
                         const newQty = existingOrder.quantity + delta;
                         if (newQty <= 0) return { ...m, orders: m.orders.filter(o => o.productId !== productId) };
                         return { ...m, orders: m.orders.map(o => o.productId === productId ? { ...o, quantity: newQty } : o) };
                     } else if (delta > 0) {
-                        return { ...m, orders: [...m.orders, { productId, name: product.name, quantity: 1, price: product.price }] };
+                        return { ...m, orders: [...m.orders, { productId, name: product.name, quantity: 1, price: product.price }] } as SessionMember;
                     }
                     return m;
                 })
-            };
+            } as ActiveSession;
         }));
-
-        setAddOrderModal(prev => {
-            if (!prev) return null;
-            // Re-finding logic needs the *updated* activeSessions, but start transition etc.
-            // We can just trust the next render or force update logic?
-            // Actually, since we updated state, re-render happens.
-            // We just need to make sure `addOrderModal` content is fresh? 
-            // The original code updated `addOrderModal` state too, but that seems redundant if we just read from activeSessions in render?
-            // Original: `const currentMember = activeSessions...` inside the modal render.
-            // So we don't strictly need to update `addOrderModal` state if we derive data from `activeSessions` in render.
-            return prev;
-        });
-
-        // TODO: Debounce server update? Or call action immediately?
-        // The original code didn't hold server action for order update in the snippet I saw?
-        // Ah, I missed `handleUpdateMemberOrder` implementation details in original file?
-        // Let's check... it was just updating local state `setActiveSessions`. 
-        // Wait, `addSessionOrder` was imported but not used in `handleUpdateMemberOrder` in the snippet?
-        // I need to verify if orders are persisted in `SessionsPage`.
-        // Checking... `handleUpdateMemberOrder` in `SessionsPage` ONLY updated local state. 
-        // That means orders were NOT persisted until... never? Or maybe end session?
-        // Ah, I see `handleUpdateMemberOrder` calls `addSessionOrder`? 
-        // No, in the snippet `handleUpdateMemberOrder` only did `setActiveSessions`.
-        // That's a bug in previous implementation or I missed it.
-        // I will assume I need to implement persistence here.
-
-        // However, for this refactor I will stick to what I have, but add persistence TODO or implementation.
-        // Actually, `addSessionOrder` is imported. I should use it.
     };
 
     const handleAddMemberToSession = async (member: User) => {
-        toast.error("إضافة عضو لجلسة قائمة يتطلب تحديث الخادم (Not Implemented Yet)");
+        if (!addMemberModal) return;
+        // Check if member already in session
+        if (addMemberModal.members.some(m => m.id === member.id && !m.leftAt)) {
+            return toast.error("العضو موجود بالفعل في هذه الجلسة");
+        }
+
+        setActiveSessions((prev: ActiveSession[]) => prev.map(s => {
+            if (s.id !== addMemberModal.id) return s;
+            const newMember: SessionMember = {
+                id: member.id,
+                name: member.full_name,
+                phone: member.phone,
+                joinedAt: new Date().toISOString(),
+                leftAt: null,
+                orders: []
+            };
+            return {
+                ...s,
+                members: [...s.members, newMember]
+            };
+        }));
+
+        toast.success(`تم إضافة ${member.full_name} للجلسة`);
         onMemberSearch('');
+        setAddMemberModal(null);
     };
 
     const handleAddNewMember = async () => {
-        toast.error("إضافة عضو جديد لجلسة قائمة (Not Implemented Yet)");
+        if (!addMemberModal || !newMemberName || !newMemberPhone) return;
+
+        const newMember: User = {
+            id: Math.random().toString(),
+            full_name: newMemberName,
+            phone: newMemberPhone,
+            role: 'user',
+            nickname: '',
+            avatar_url: null,
+            email: null,
+            cairoom_wallet_balance: 0,
+            affiliate_balance: 0,
+            referral_code: '',
+            referred_by: null,
+            game_stats: { wins: 0, attended: 0 },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+
+        setMembers([newMember, ...members]);
+        handleAddMemberToSession(newMember);
+
         setNewMemberName('');
         setNewMemberPhone('');
         setShowAddNew(false);
