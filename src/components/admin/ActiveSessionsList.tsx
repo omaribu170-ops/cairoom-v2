@@ -113,7 +113,7 @@ export function ActiveSessionsList({
         if (paymentMethod === 'visa' && !paymentDetails.cardHolder) return toast.error('يرجى إدخال اسم صاحب الكارت');
         if (paymentMethod === 'wallet' && (!paymentDetails.walletNumber || !paymentDetails.walletOwner)) return toast.error('يرجى إدخال بيانات المحفظة');
         if (paymentMethod === 'cairoom' && !paymentDetails.cairoomUser) return toast.error('يرجى اختيار العضو صاحب المحفظة');
-        if (paymentMethod === 'cairoom' && cairoomWalletBalance !== null && getMemberBill(member, session.pricePerHour).total > cairoomWalletBalance) return toast.error('الرصيد غير كافي');
+        if (paymentMethod === 'cairoom' && cairoomWalletBalance !== null && getMemberBill(member, session.pricePerHour, session.priceFirstHour).total > cairoomWalletBalance) return toast.error('الرصيد غير كافي');
 
         try {
             await updateSessionMember(session.id, member.id, {
@@ -341,7 +341,7 @@ export function ActiveSessionsList({
                                 )}
                                 <div className="glass-card p-4 space-y-3">
                                     {endSessionModal.members.filter(m => !m.leftAt).map(member => {
-                                        const bill = getMemberBill(member, endSessionModal.pricePerHour);
+                                        const bill = getMemberBill(member, endSessionModal.pricePerHour, endSessionModal.priceFirstHour);
                                         return (
                                             <div key={member.id} className="flex items-center justify-between text-sm">
                                                 <span>{member.name}</span><span>{formatCurrency(bill.total)}</span>
@@ -432,7 +432,7 @@ export function ActiveSessionsList({
                 <DialogContent className="glass-modal sm:max-w-sm">
                     <DialogHeader><DialogTitle className="gradient-text text-xl">إنهاء جلسة العضو</DialogTitle></DialogHeader>
                     {endMemberModal && (() => {
-                        const bill = getMemberBill(endMemberModal.member, endMemberModal.session.pricePerHour);
+                        const bill = getMemberBill(endMemberModal.member, endMemberModal.session.pricePerHour, endMemberModal.session.priceFirstHour);
                         return (
                             <div className="space-y-4 py-4">
                                 <div className="text-center">
