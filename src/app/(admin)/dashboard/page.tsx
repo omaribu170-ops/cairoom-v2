@@ -20,7 +20,7 @@ import { formatCurrency, cn } from '@/lib/utils';
 import {
     Table2, Users, Wallet, Clock, ShoppingBag, Plus, Play, Search, Square,
     ArrowUpLeft, ArrowDownRight, X, UserPlus, Coffee, Minus, Calendar,
-    CreditCard, Banknote, Smartphone, Building2,
+    CreditCard, Banknote, Smartphone, Building2, ArrowLeftRight,
 } from 'lucide-react';
 import { SessionTimer } from '@/components/admin/SessionTimer';
 import { toast } from 'sonner';
@@ -83,6 +83,8 @@ interface ActiveSession {
     pricePerHour: number;
     startTime: string;
     members: SessionMember[];
+    // سجل الطاولات (الأصلية + المنقول إليها)
+    tableHistory: { tableId: string; tableName: string; pricePerHour: number; startTime: string; endTime?: string }[];
 }
 
 const initialActiveSessions: ActiveSession[] = [
@@ -92,15 +94,17 @@ const initialActiveSessions: ActiveSession[] = [
         members: [
             { id: 'm1', name: 'أحمد محمد', orders: [{ productId: 'p1', productName: 'قهوة تركي', quantity: 2, price: 25 }] },
             { id: 'm2', name: 'سارة أحمد', orders: [{ productId: 'p3', productName: 'عصير برتقال', quantity: 1, price: 30 }] },
-        ]
+        ],
+        tableHistory: [{ tableId: '2', tableName: 'طاولة ٢', pricePerHour: 25, startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() }]
     },
     {
-        id: 's2', type: 'hall', tableIds: ['4', '5'], tableName: 'غرفة VIP ١ + غرفة VIP ٢', hallId: 'h2', hallName: 'قاعة VIP', pricePerHour: 50,
+        id: 's2', type: 'hall', tableIds: ['4', '5'], tableName: 'غرفة VIP ١ + غرفة VIP ٢', hallId: 'h2', hallName: 'قاعة VIP', pricePerHour: 350,
         startTime: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
         members: [
             { id: 'm3', name: 'محمد علي', orders: [{ productId: 'p4', productName: 'ساندويتش جبنة', quantity: 2, price: 40 }] },
             { id: 'm4', name: 'عمر حسن', orders: [] },
-        ]
+        ],
+        tableHistory: [{ tableId: 'h2', tableName: 'قاعة VIP', pricePerHour: 350, startTime: new Date(Date.now() - 45 * 60 * 1000).toISOString() }]
     },
 ];
 
@@ -138,6 +142,9 @@ export default function AdminDashboardPage() {
     // End Session Modal
     const [endSessionModal, setEndSessionModal] = useState<ActiveSession | null>(null);
     const [paymentMethod, setPaymentMethod] = useState('cash');
+
+    // Switch Table Modal
+    const [switchTableModal, setSwitchTableModal] = useState<ActiveSession | null>(null);
 
     const stats = useMemo(() => getStatsByPeriod(timePeriod), [timePeriod]);
     const availableTables = mockTables.filter(t => t.status === 'available');
@@ -207,6 +214,8 @@ export default function AdminDashboardPage() {
         const table = mockTables.find(t => t.id === selectedTable);
         const hall = mockHalls.find(h => h.id === selectedHall);
         const tableNames = selectedHallTables.map(id => mockTables.find(t => t.id === id)?.name).join(' + ');
+        const now = new Date().toISOString();
+        const pricePerHour = sessionType === 'table' ? (table?.price_per_hour_per_person || 25) : (hall?.price_per_hour || 200);
 
         const newSession: ActiveSession = {
             id: `session-${Date.now()}`,
@@ -215,9 +224,15 @@ export default function AdminDashboardPage() {
             tableName: sessionType === 'table' ? (table?.name || '') : tableNames,
             hallId: sessionType === 'hall' ? selectedHall : undefined,
             hallName: sessionType === 'hall' ? hall?.name : undefined,
-            pricePerHour: sessionType === 'table' ? (table?.price_per_hour_per_person || 25) : (hall?.price_per_hour || 200),
-            startTime: new Date().toISOString(),
+            pricePerHour,
+            startTime: now,
             members: sessionMembers,
+            tableHistory: [{
+                tableId: sessionType === 'table' ? selectedTable : selectedHall,
+                tableName: sessionType === 'table' ? (table?.name || '') : (hall?.name || ''),
+                pricePerHour,
+                startTime: now,
+            }],
         };
 
         setActiveSessions([...activeSessions, newSession]);
@@ -234,15 +249,25 @@ export default function AdminDashboardPage() {
         setSessionMembers([]);
     };
 
-    // حساب إجمالي الجلسة
-    // Table: price × hours × members | Hall: price × hours (flat rate)
+    // حساب إجمالي الجلسة باستخدام سجل الطاولات
     const getSessionTotal = (session: ActiveSession) => {
-        const durationHours = (Date.now() - new Date(session.startTime).getTime()) / (1000 * 60 * 60);
-        const timeCost = session.type === 'hall'
-            ? Math.ceil(durationHours * session.pricePerHour)  // Hall: flat pricing
-            : Math.ceil(durationHours * session.pricePerHour * session.members.length);  // Table: per member
+        let timeCost = 0;
+        const now = Date.now();
+
+        // حساب تكلفة كل طاولة في السجل
+        session.tableHistory.forEach(th => {
+            const start = new Date(th.startTime).getTime();
+            const end = th.endTime ? new Date(th.endTime).getTime() : now;
+            const hours = (end - start) / (1000 * 60 * 60);
+            if (session.type === 'hall') {
+                timeCost += Math.ceil(hours * th.pricePerHour);
+            } else {
+                timeCost += Math.ceil(hours * th.pricePerHour * session.members.length);
+            }
+        });
+
         const ordersCost = session.members.reduce((sum, m) => sum + m.orders.reduce((s, o) => s + (o.price * o.quantity), 0), 0);
-        return { timeCost, ordersCost, total: timeCost + ordersCost };
+        return { timeCost, ordersCost, total: timeCost + ordersCost, tableHistory: session.tableHistory };
     };
 
     // إنهاء الجلسة
@@ -251,6 +276,40 @@ export default function AdminDashboardPage() {
         setActiveSessions(activeSessions.filter(s => s.id !== endSessionModal.id));
         toast.success('تم إنهاء الجلسة وحفظها في السجل');
         setEndSessionModal(null);
+    };
+
+    // تبديل الطاولة
+    const handleSwitchTable = (newTableId: string) => {
+        if (!switchTableModal) return;
+        const newTable = mockTables.find(t => t.id === newTableId);
+        if (!newTable) return;
+
+        const now = new Date().toISOString();
+
+        setActiveSessions(activeSessions.map(s => {
+            if (s.id !== switchTableModal.id) return s;
+            // إغلاق الطاولة الحالية
+            const updatedHistory = s.tableHistory.map((th, i) =>
+                i === s.tableHistory.length - 1 ? { ...th, endTime: now } : th
+            );
+            // إضافة الطاولة الجديدة
+            updatedHistory.push({
+                tableId: newTableId,
+                tableName: newTable.name,
+                pricePerHour: newTable.price_per_hour_per_person,
+                startTime: now,
+            });
+            return {
+                ...s,
+                tableIds: [newTableId],
+                tableName: newTable.name,
+                pricePerHour: newTable.price_per_hour_per_person,
+                tableHistory: updatedHistory,
+            };
+        }));
+
+        toast.success(`تم النقل إلى ${newTable.name}`);
+        setSwitchTableModal(null);
     };
 
     return (
@@ -420,6 +479,11 @@ export default function AdminDashboardPage() {
                                                 <Button size="sm" className="gradient-button" onClick={() => setEndSessionModal(session)}>
                                                     <Square className="h-4 w-4 ml-1" />إنهاء
                                                 </Button>
+                                                {session.type === 'table' && (
+                                                    <Button size="sm" variant="ghost" className="glass-button" onClick={() => setSwitchTableModal(session)}>
+                                                        <ArrowLeftRight className="h-4 w-4 ml-1" />تبديل
+                                                    </Button>
+                                                )}
                                             </div>
                                         </div>
                                         {/* عرض الطلبات لكل عضو */}
@@ -598,6 +662,19 @@ export default function AdminDashboardPage() {
                         const totals = getSessionTotal(endSessionModal);
                         return (
                             <div className="space-y-4 py-4">
+                                {/* سجل الطاولات المستخدمة */}
+                                {endSessionModal.tableHistory.length > 1 && (
+                                    <div className="glass-card p-3">
+                                        <p className="text-xs text-muted-foreground mb-2">الطاولات المستخدمة:</p>
+                                        <div className="flex flex-wrap gap-1">
+                                            {endSessionModal.tableHistory.map((th, i) => (
+                                                <Badge key={i} variant="outline" className="text-xs">
+                                                    {th.tableName}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="glass-card p-4 space-y-3">
                                     {endSessionModal.members.map(member => {
                                         const ordersCost = member.orders.reduce((s, o) => s + (o.price * o.quantity), 0);
@@ -634,6 +711,52 @@ export default function AdminDashboardPage() {
                     <DialogFooter className="gap-2">
                         <Button variant="ghost" className="glass-button" onClick={() => setEndSessionModal(null)}>إلغاء</Button>
                         <Button className="gradient-button" onClick={handleEndSession}>إنهاء وحفظ</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* نافذة تبديل الطاولة */}
+            <Dialog open={!!switchTableModal} onOpenChange={() => setSwitchTableModal(null)}>
+                <DialogContent className="glass-modal sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="gradient-text text-xl">تبديل الطاولة</DialogTitle>
+                        <DialogDescription>اختر طاولة متاحة للانتقال إليها</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 py-4">
+                        {switchTableModal && (
+                            <div className="glass-card p-3 mb-4">
+                                <p className="text-sm text-muted-foreground">الطاولة الحالية</p>
+                                <p className="font-bold">{switchTableModal.tableName}</p>
+                                {switchTableModal.tableHistory.length > 1 && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        الطاولات السابقة: {switchTableModal.tableHistory.slice(0, -1).map(th => th.tableName).join(' → ')}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                        <p className="text-sm font-medium">الطاولات المتاحة:</p>
+                        <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto">
+                            {availableTables
+                                .filter(t => !switchTableModal?.tableIds.includes(t.id))
+                                .map(table => (
+                                    <button
+                                        key={table.id}
+                                        onClick={() => handleSwitchTable(table.id)}
+                                        className="glass-card p-3 text-right hover:bg-white/10 transition-colors"
+                                    >
+                                        <p className="font-medium">{table.name}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {table.capacity_min}-{table.capacity_max} • {formatCurrency(table.price_per_hour_per_person)}/س/فرد
+                                        </p>
+                                    </button>
+                                ))}
+                        </div>
+                        {availableTables.filter(t => !switchTableModal?.tableIds.includes(t.id)).length === 0 && (
+                            <p className="text-sm text-muted-foreground text-center p-4">لا توجد طاولات متاحة</p>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" className="glass-button" onClick={() => setSwitchTableModal(null)}>إلغاء</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
