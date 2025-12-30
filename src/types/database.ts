@@ -28,19 +28,6 @@ export interface User {
   updated_at: string;
 }
 
-// ========================= قاعات Halls =========================
-export interface Hall {
-  id: string;
-  name: string;
-  capacity_min: number;
-  capacity_max: number;
-  price_per_hour: number;
-  price_first_hour?: number | null;
-  image_url?: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 // ========================= طاولات Tables =========================
 export type TableStatus = 'available' | 'busy';
 
@@ -51,13 +38,9 @@ export interface Table {
   capacity_min: number;
   capacity_max: number;
   price_per_hour_per_person: number;
-  price_first_hour_per_person?: number | null;
   status: TableStatus;
-  hall_id: string | null;
   created_at: string;
   updated_at: string;
-  // Relations
-  hall?: Hall;
 }
 
 // ========================= جلسات Sessions =========================
@@ -68,15 +51,11 @@ export interface SessionAttendee {
   user_id: string | null;
   name: string;
   phone?: string;
-  joined_at?: string;
-  left_at?: string | null;
 }
 
 export interface Session {
   id: string;
-  table_id: string | null;
-  hall_id: string | null;
-  table_ids: string[] | null;
+  table_id: string;
   start_time: string;
   end_time: string | null;
   status: SessionStatus;
@@ -90,63 +69,7 @@ export interface Session {
   updated_at: string;
   // Relations
   table?: Table;
-  hall?: Hall;
   orders?: Order[];
-}
-
-// ========================= UI Helper Types =========================
-
-export interface TableHistoryEntry {
-  tableId: string;
-  tableName: string;
-  pricePerHour: number;
-  priceFirstHour?: number;
-  startTime: string;
-  endTime?: string;
-}
-
-export interface SessionMember {
-  id: string;
-  name: string;
-  phone: string;
-  joinedAt: string;
-  leftAt: string | null;
-  billDetails?: {
-    duration: number;
-    timeCost: number;
-    ordersCost: number;
-    total: number;
-  };
-  orders: { productId: string; name: string; quantity: number; price: number }[];
-}
-
-export interface ActiveSession {
-  id: string;
-  type: 'table' | 'hall';
-  hallName?: string;
-  tableId: string;
-  tableName: string;
-  pricePerHour: number;
-  priceFirstHour?: number;
-  startTime: string;
-  members: SessionMember[];
-  tableHistory: TableHistoryEntry[];
-  hallTableIds?: string[];
-}
-
-export interface HistorySession {
-  id: string;
-  type: 'table' | 'hall';
-  hallName?: string;
-  tablesUsed: string[];
-  date: string;
-  startTime: string;
-  endTime: string;
-  members: SessionMember[];
-  totalTimeCost: number;
-  totalOrdersCost: number;
-  grandTotal: number;
-  paymentMethod?: string;
 }
 
 // ========================= منتجات Products =========================
@@ -419,11 +342,6 @@ export interface Database {
         Row: Table;
         Insert: Omit<Table, 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Omit<Table, 'id' | 'created_at'>>;
-      };
-      halls: {
-        Row: Hall;
-        Insert: Omit<Hall, 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Omit<Hall, 'id' | 'created_at'>>;
       };
       sessions: {
         Row: Session;
