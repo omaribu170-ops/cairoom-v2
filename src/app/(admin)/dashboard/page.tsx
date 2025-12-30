@@ -131,6 +131,7 @@ export default function AdminDashboardPage() {
     const [sessionType, setSessionType] = useState<'table' | 'hall'>('table');
     const [selectedTable, setSelectedTable] = useState<string>('');
     const [selectedHall, setSelectedHall] = useState<string>('');
+    const [hallTableMode, setHallTableMode] = useState<'hall' | 'any'>('hall'); // اختيار طاولات القاعة أو أي طاولة متاحة
     const [selectedHallTables, setSelectedHallTables] = useState<string[]>([]);
     const [sessionMembers, setSessionMembers] = useState<SessionMember[]>([]);
     const [memberSearch, setMemberSearch] = useState('');
@@ -149,6 +150,7 @@ export default function AdminDashboardPage() {
     const stats = useMemo(() => getStatsByPeriod(timePeriod), [timePeriod]);
     const availableTables = mockTables.filter(t => t.status === 'available');
     const hallTables = selectedHall ? mockTables.filter(t => t.hallId === selectedHall && t.status === 'available') : [];
+    const allAvailableTables = mockTables.filter(t => t.status === 'available');
     const filteredMembers = mockMembers.filter(m =>
         m.full_name.toLowerCase().includes(memberSearch.toLowerCase()) || m.phone.includes(memberSearch)
     );
@@ -572,10 +574,21 @@ export default function AdminDashboardPage() {
                                 </Select>
                             </div>
                             {selectedHall && (
-                                <div className="space-y-2">
+                                <div className="space-y-3">
+                                    {/* اختيار نوع الطاولات */}
                                     <Label>اختر الطاولات *</Label>
+                                    <div className="flex gap-2">
+                                        <Button size="sm" variant="ghost" className={cn('glass-button flex-1', hallTableMode === 'hall' && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                                            onClick={() => { setHallTableMode('hall'); setSelectedHallTables([]); }}>
+                                            طاولات القاعة فقط
+                                        </Button>
+                                        <Button size="sm" variant="ghost" className={cn('glass-button flex-1', hallTableMode === 'any' && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                                            onClick={() => { setHallTableMode('any'); setSelectedHallTables([]); }}>
+                                            أي طاولة متاحة
+                                        </Button>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-2">
-                                        {hallTables.map(table => (
+                                        {(hallTableMode === 'hall' ? hallTables : allAvailableTables).map(table => (
                                             <div key={table.id} className={cn('glass-card p-3 cursor-pointer transition-all', selectedHallTables.includes(table.id) && 'bg-[#F18A21]/20 border-[#F18A21]')}
                                                 onClick={() => toggleHallTable(table.id)}>
                                                 <div className="flex items-center gap-2">
@@ -585,7 +598,10 @@ export default function AdminDashboardPage() {
                                             </div>
                                         ))}
                                     </div>
-                                    {hallTables.length === 0 && <p className="text-sm text-muted-foreground">لا توجد طاولات متاحة في هذه القاعة</p>}
+                                    {(hallTableMode === 'hall' ? hallTables : allAvailableTables).length === 0 && <p className="text-sm text-muted-foreground">لا توجد طاولات متاحة</p>}
+                                    {selectedHallTables.length > 0 && (
+                                        <p className="text-xs text-muted-foreground">تم اختيار: {selectedHallTables.map(id => mockTables.find(t => t.id === id)?.name).join(', ')}</p>
+                                    )}
                                 </div>
                             )}
                         </TabsContent>
