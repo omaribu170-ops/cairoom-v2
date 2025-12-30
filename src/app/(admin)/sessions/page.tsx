@@ -21,17 +21,33 @@ import { formatCurrency, cn } from '@/lib/utils';
 import {
     Play, Square, UserPlus, UserMinus, Search, Clock, Eye,
     CreditCard, Wallet, Smartphone, Banknote, ArrowLeftRight,
+    Plus, Coffee, Minus, X, Building2,
 } from 'lucide-react';
 import { SessionTimer } from '@/components/admin/SessionTimer';
 
 // بيانات الطاولات المتاحة
 const mockTables = [
-    { id: '1', name: 'طاولة ١', price_per_hour_per_person: 25, status: 'available' },
-    { id: '2', name: 'طاولة ٢', price_per_hour_per_person: 25, status: 'busy' },
-    { id: '3', name: 'طاولة ٣', price_per_hour_per_person: 20, status: 'available' },
-    { id: '4', name: 'غرفة الاجتماعات', price_per_hour_per_person: 30, status: 'busy' },
-    { id: '5', name: 'طاولة ٥', price_per_hour_per_person: 25, status: 'available' },
-    { id: '6', name: 'طاولة ٦', price_per_hour_per_person: 20, status: 'available' },
+    { id: '1', name: 'طاولة ١', hallId: 'h1', price_per_hour_per_person: 25, status: 'available' },
+    { id: '2', name: 'طاولة ٢', hallId: 'h1', price_per_hour_per_person: 25, status: 'busy' },
+    { id: '3', name: 'طاولة ٣', hallId: 'h1', price_per_hour_per_person: 20, status: 'available' },
+    { id: '4', name: 'غرفة VIP ١', hallId: 'h2', price_per_hour_per_person: 50, status: 'available' },
+    { id: '5', name: 'غرفة VIP ٢', hallId: 'h2', price_per_hour_per_person: 50, status: 'available' },
+    { id: '6', name: 'طاولة الحديقة', hallId: 'h3', price_per_hour_per_person: 30, status: 'available' },
+];
+
+// بيانات القاعات
+const mockHalls = [
+    { id: 'h1', name: 'القاعة الرئيسية', capacity_min: 10, capacity_max: 50, price_per_hour: 200 },
+    { id: 'h2', name: 'قاعة VIP', capacity_min: 5, capacity_max: 20, price_per_hour: 350 },
+    { id: 'h3', name: 'قاعة الحديقة', capacity_min: 20, capacity_max: 100, price_per_hour: 500 },
+];
+
+// بيانات المنتجات
+const mockProducts = [
+    { id: 'p1', name: 'قهوة تركي', price: 25 },
+    { id: 'p2', name: 'شاي', price: 15 },
+    { id: 'p3', name: 'عصير برتقال', price: 30 },
+    { id: 'p4', name: 'ساندويتش', price: 40 },
 ];
 
 // أنواع البيانات
@@ -194,6 +210,17 @@ export default function SessionsPage() {
     const [switchTableModal, setSwitchTableModal] = useState<ActiveSession | null>(null);
     const [paymentMethod, setPaymentMethod] = useState<string>('cash');
 
+    // Start Session Modal State
+    const [startSessionOpen, setStartSessionOpen] = useState(false);
+    const [sessionType, setSessionType] = useState<'table' | 'hall'>('table');
+    const [selectedTable, setSelectedTable] = useState<string>('');
+    const [selectedHall, setSelectedHall] = useState<string>('');
+    const [hallTableMode, setHallTableMode] = useState<'hall' | 'any'>('hall'); // اختيار طاولات القاعة أو أي طاولة متاحة
+    const [selectedHallTables, setSelectedHallTables] = useState<string[]>([]);
+    const [sessionMembers, setSessionMembers] = useState<{ id: string; name: string; orders: { productId: string; productName: string; quantity: number; price: number }[] }[]>([]);
+    const [showAddMember, setShowAddMember] = useState(false);
+    const [newMemberGender, setNewMemberGender] = useState<'male' | 'female'>('male');
+
     // بحث الأعضاء
     const [memberSearch, setMemberSearch] = useState('');
     const [newMemberName, setNewMemberName] = useState('');
@@ -205,6 +232,11 @@ export default function SessionsPage() {
 
     // تبويبات الجلسات النشطة
     const [activeSubTab, setActiveSubTab] = useState<'all' | 'tables' | 'halls'>('all');
+
+    // الطاولات المتاحة
+    const availableTables = mockTables.filter(t => t.status === 'available');
+    const hallTables = selectedHall ? mockTables.filter(t => t.hallId === selectedHall && t.status === 'available') : [];
+    const allAvailableTables = mockTables.filter(t => t.status === 'available');
 
     const filteredMembers = mockAllMembers.filter(m =>
         m.full_name.toLowerCase().includes(memberSearch.toLowerCase()) || m.phone.includes(memberSearch)
@@ -228,8 +260,6 @@ export default function SessionsPage() {
             (historySubTab === 'halls' && s.type === 'hall');
         return matchesSearch && matchesDate && matchesType;
     });
-
-    const availableTables = mockTables.filter(t => t.status === 'available');
 
     // إنهاء الجلسة
     const handleEndSession = () => {
@@ -368,11 +398,124 @@ export default function SessionsPage() {
         return { timeCost, ordersCost, total: timeCost + ordersCost };
     };
 
+    // ============ Start Session Functions ============
+    // إضافة عضو موجود للجلسة الجديدة
+    const handleAddExistingMember = (member: typeof mockAllMembers[0]) => {
+        if (sessionMembers.find(m => m.id === member.id)) {
+            setMemberSearch('');
+            return;
+        }
+        if (isMemberInActiveSession(member.id)) {
+            const sessionName = getMemberActiveSessionName(member.id);
+            toast.error(`${member.full_name} موجود بالفعل في جلسة نشطة (${sessionName})`);
+            return;
+        }
+        setSessionMembers([...sessionMembers, { id: member.id, name: member.full_name, orders: [] }]);
+        setMemberSearch('');
+    };
+
+    // إضافة عضو جديد
+    const handleAddNewMemberToSession = () => {
+        if (!newMemberName.trim() || !newMemberPhone.trim()) return;
+        const newId = `new-${Date.now()}`;
+        setSessionMembers([...sessionMembers, { id: newId, name: newMemberName, orders: [] }]);
+        toast.success(`تم إضافة ${newMemberName} للقاعدة والجلسة`);
+        setNewMemberName('');
+        setNewMemberPhone('');
+        setNewMemberGender('male');
+        setShowAddMember(false);
+    };
+
+    // إزالة عضو من الجلسة الجديدة
+    const handleRemoveSessionMember = (memberId: string) => {
+        setSessionMembers(sessionMembers.filter(m => m.id !== memberId));
+    };
+
+    // إضافة/تقليل منتج لعضو
+    const handleAdjustProduct = (memberId: string, productId: string, delta: number) => {
+        const product = mockProducts.find(p => p.id === productId);
+        if (!product) return;
+        setSessionMembers(sessionMembers.map(m => {
+            if (m.id !== memberId) return m;
+            const existingOrder = m.orders.find(o => o.productId === productId);
+            if (existingOrder) {
+                const newQty = existingOrder.quantity + delta;
+                if (newQty <= 0) return { ...m, orders: m.orders.filter(o => o.productId !== productId) };
+                return { ...m, orders: m.orders.map(o => o.productId === productId ? { ...o, quantity: newQty } : o) };
+            } else if (delta > 0) {
+                return { ...m, orders: [...m.orders, { productId, productName: product.name, quantity: 1, price: product.price }] };
+            }
+            return m;
+        }));
+    };
+
+    // تبديل طاولة في القاعة
+    const toggleHallTable = (tableId: string) => {
+        setSelectedHallTables(prev => prev.includes(tableId) ? prev.filter(id => id !== tableId) : [...prev, tableId]);
+    };
+
+    // بدء الجلسة
+    const handleStartSession = () => {
+        if (sessionType === 'table' && (!selectedTable || sessionMembers.length === 0)) return;
+        if (sessionType === 'hall' && (!selectedHall || selectedHallTables.length === 0 || sessionMembers.length === 0)) return;
+
+        const table = mockTables.find(t => t.id === selectedTable);
+        const hall = mockHalls.find(h => h.id === selectedHall);
+        const tableNames = selectedHallTables.map(id => mockTables.find(t => t.id === id)?.name).join(' + ');
+        const now = new Date().toISOString();
+        const pricePerHour = sessionType === 'table' ? (table?.price_per_hour_per_person || 25) : (hall?.price_per_hour || 200);
+
+        const newSession: ActiveSession = {
+            id: `session-${Date.now()}`,
+            type: sessionType,
+            hallName: sessionType === 'hall' ? hall?.name : undefined,
+            tableId: sessionType === 'table' ? selectedTable : selectedHall,
+            tableName: sessionType === 'table' ? (table?.name || '') : tableNames,
+            pricePerHour,
+            startTime: now,
+            members: sessionMembers.map(m => ({
+                id: m.id,
+                name: m.name,
+                phone: '',
+                joinedAt: now,
+                leftAt: null,
+                orders: m.orders.map(o => ({ product: o.productName, quantity: o.quantity, price: o.price })),
+            })),
+            tableHistory: [{
+                tableId: sessionType === 'table' ? selectedTable : selectedHall,
+                tableName: sessionType === 'table' ? (table?.name || '') : (hall?.name || ''),
+                pricePerHour,
+                startTime: now,
+            }],
+        };
+
+        setActiveSessions([...activeSessions, newSession]);
+        toast.success('تم بدء الجلسة بنجاح');
+        resetSessionModal();
+    };
+
+    // إعادة تعيين نافذة بدء الجلسة
+    const resetSessionModal = () => {
+        setStartSessionOpen(false);
+        setSessionType('table');
+        setSelectedTable('');
+        setSelectedHall('');
+        setHallTableMode('hall');
+        setSelectedHallTables([]);
+        setSessionMembers([]);
+        setMemberSearch('');
+    };
+
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold gradient-text">إدارة الجلسات</h1>
-                <p className="text-muted-foreground mt-1">الجلسات النشطة وسجل الجلسات السابقة</p>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold gradient-text">إدارة الجلسات</h1>
+                    <p className="text-muted-foreground mt-1">الجلسات النشطة وسجل الجلسات السابقة</p>
+                </div>
+                <Button className="gradient-button" onClick={() => setStartSessionOpen(true)}>
+                    <Plus className="h-4 w-4 ml-2" />بدء جلسة جديدة
+                </Button>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -752,6 +895,152 @@ export default function SessionsPage() {
                         </div>
                     )}
                     <DialogFooter><Button variant="ghost" className="glass-button" onClick={() => setReceiptModal(null)}>إغلاق</Button></DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* نافذة بدء جلسة جديدة */}
+            <Dialog open={startSessionOpen} onOpenChange={resetSessionModal}>
+                <DialogContent className="glass-modal sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="gradient-text text-xl">بدء جلسة جديدة</DialogTitle>
+                    </DialogHeader>
+                    <Tabs value={sessionType} onValueChange={(v) => { setSessionType(v as 'table' | 'hall'); setSelectedTable(''); setSelectedHall(''); setSelectedHallTables([]); }}>
+                        <TabsList className="glass-card w-full">
+                            <TabsTrigger value="table" className="flex-1 gap-2"><Building2 className="h-4 w-4" />طاولة</TabsTrigger>
+                            <TabsTrigger value="hall" className="flex-1 gap-2"><Building2 className="h-4 w-4" />قاعة</TabsTrigger>
+                        </TabsList>
+
+                        {/* تبويب الطاولة */}
+                        <TabsContent value="table" className="space-y-4 mt-4">
+                            <div>
+                                <Label>اختر الطاولة</Label>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+                                    {availableTables.map(t => (
+                                        <button key={t.id} onClick={() => setSelectedTable(t.id)}
+                                            className={cn('glass-card p-3 text-right transition-colors', selectedTable === t.id && 'bg-[#F18A21]/20 border-[#F18A21]')}>
+                                            <p className="font-medium">{t.name}</p>
+                                            <p className="text-xs text-muted-foreground">{formatCurrency(t.price_per_hour_per_person)}/س/فرد</p>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </TabsContent>
+
+                        {/* تبويب القاعة */}
+                        <TabsContent value="hall" className="space-y-4 mt-4">
+                            <div>
+                                <Label>اختر القاعة</Label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                                    {mockHalls.map(h => (
+                                        <button key={h.id} onClick={() => { setSelectedHall(h.id); setSelectedHallTables([]); }}
+                                            className={cn('glass-card p-3 text-right transition-colors', selectedHall === h.id && 'bg-[#F18A21]/20 border-[#F18A21]')}>
+                                            <p className="font-medium">{h.name}</p>
+                                            <p className="text-xs text-muted-foreground">{h.capacity_min}-{h.capacity_max} • {formatCurrency(h.price_per_hour)}/ساعة</p>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            {selectedHall && (
+                                <>
+                                    {/* اختيار نوع الطاولات */}
+                                    <div>
+                                        <Label>اختر الطاولات</Label>
+                                        <div className="flex gap-2 mt-2">
+                                            <Button size="sm" variant="ghost" className={cn('glass-button flex-1', hallTableMode === 'hall' && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                                                onClick={() => { setHallTableMode('hall'); setSelectedHallTables([]); }}>
+                                                طاولات القاعة فقط
+                                            </Button>
+                                            <Button size="sm" variant="ghost" className={cn('glass-button flex-1', hallTableMode === 'any' && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                                                onClick={() => { setHallTableMode('any'); setSelectedHallTables([]); }}>
+                                                أي طاولة متاحة
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                        {(hallTableMode === 'hall' ? hallTables : allAvailableTables).map(t => (
+                                            <button key={t.id} onClick={() => toggleHallTable(t.id)}
+                                                className={cn('glass-card p-2 text-right text-sm transition-colors', selectedHallTables.includes(t.id) && 'bg-[#F18A21]/20 border-[#F18A21]')}>
+                                                {t.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {selectedHallTables.length > 0 && (
+                                        <p className="text-xs text-muted-foreground">تم اختيار: {selectedHallTables.map(id => mockTables.find(t => t.id === id)?.name).join(', ')}</p>
+                                    )}
+                                </>
+                            )}
+                        </TabsContent>
+                    </Tabs>
+
+                    {/* الأعضاء */}
+                    <div className="space-y-3 border-t border-white/10 pt-4 mt-4">
+                        <div className="flex items-center justify-between">
+                            <Label>الأعضاء ({sessionMembers.length})</Label>
+                            <Button size="sm" variant="ghost" className="glass-button" onClick={() => setShowAddMember(true)}><UserPlus className="h-4 w-4 ml-1" />إضافة عضو</Button>
+                        </div>
+                        <div className="relative">
+                            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input placeholder="ابحث عن عضو..." value={memberSearch} onChange={(e) => setMemberSearch(e.target.value)} className="glass-input pr-10" />
+                        </div>
+                        {memberSearch && (
+                            <div className="glass-card p-2 space-y-1 max-h-32 overflow-y-auto">
+                                {filteredMembers.map(m => (
+                                    <button key={m.id} onClick={() => handleAddExistingMember(m)} className="w-full p-2 text-right rounded-lg hover:bg-white/10 text-sm">
+                                        <span className="font-medium">{m.full_name}</span>
+                                        <span className="text-muted-foreground mr-2">({m.phone})</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        {showAddMember && (
+                            <div className="glass-card p-3 space-y-2">
+                                <div className="flex gap-2">
+                                    <Input placeholder="الاسم" value={newMemberName} onChange={(e) => setNewMemberName(e.target.value)} className="glass-input flex-1" />
+                                    <Input placeholder="الهاتف" value={newMemberPhone} onChange={(e) => setNewMemberPhone(e.target.value)} className="glass-input w-32" dir="ltr" />
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button size="sm" variant="ghost" className={cn('glass-button flex-1', newMemberGender === 'male' && 'bg-[#F18A21]/20')} onClick={() => setNewMemberGender('male')}>ذكر</Button>
+                                    <Button size="sm" variant="ghost" className={cn('glass-button flex-1', newMemberGender === 'female' && 'bg-[#F18A21]/20')} onClick={() => setNewMemberGender('female')}>أنثى</Button>
+                                    <Button size="sm" className="gradient-button" onClick={handleAddNewMemberToSession}>إضافة</Button>
+                                </div>
+                            </div>
+                        )}
+                        {/* قائمة الأعضاء المضافين */}
+                        {sessionMembers.length > 0 && (
+                            <div className="space-y-2">
+                                {sessionMembers.map(m => (
+                                    <div key={m.id} className="glass-card p-3 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-medium">{m.name}</span>
+                                            <Button size="sm" variant="ghost" className="text-red-400 h-6 w-6 p-0" onClick={() => handleRemoveSessionMember(m.id)}><X className="h-4 w-4" /></Button>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1">
+                                            {mockProducts.map(p => {
+                                                const order = m.orders.find(o => o.productId === p.id);
+                                                return (
+                                                    <div key={p.id} className="flex items-center gap-1 glass-card px-2 py-1 text-xs">
+                                                        <span>{p.name}</span>
+                                                        <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={() => handleAdjustProduct(m.id, p.id, -1)}><Minus className="h-3 w-3" /></Button>
+                                                        <span className="w-4 text-center">{order?.quantity || 0}</span>
+                                                        <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={() => handleAdjustProduct(m.id, p.id, 1)}><Plus className="h-3 w-3" /></Button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter className="gap-2 mt-4">
+                        <Button variant="ghost" className="glass-button" onClick={resetSessionModal}>إلغاء</Button>
+                        <Button className="gradient-button" onClick={handleStartSession}
+                            disabled={(sessionType === 'table' && (!selectedTable || sessionMembers.length === 0)) ||
+                                (sessionType === 'hall' && (!selectedHall || selectedHallTables.length === 0 || sessionMembers.length === 0))}>
+                            <Play className="h-4 w-4 ml-2" />بدء الجلسة
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>
