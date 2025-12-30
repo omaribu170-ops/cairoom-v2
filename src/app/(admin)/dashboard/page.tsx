@@ -734,14 +734,41 @@ export default function AdminDashboardPage() {
                                 <div className="space-y-2">
                                     <Label>طريقة الدفع</Label>
                                     <div className="grid grid-cols-2 gap-2">
-                                        {[{ id: 'cash', label: 'كاش', icon: Banknote }, { id: 'visa', label: 'فيزا', icon: CreditCard },
-                                        { id: 'wallet', label: 'موبايل', icon: Smartphone }, { id: 'cairoom', label: 'CAIROOM', icon: Wallet }].map(method => (
-                                            <Button key={method.id} variant="ghost" className={cn('glass-button h-12', paymentMethod === method.id && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                                        {[{ id: 'cash', label: 'كاش', icon: Banknote }, { id: 'visa', label: 'كارت', icon: CreditCard },
+                                        { id: 'wallet', label: 'محفظة موبيل', icon: Smartphone }, { id: 'cairoom', label: 'محفظة CAIROOM', icon: Wallet }].map(method => (
+                                            <Button key={method.id} variant="ghost" className={cn('glass-button h-12 justify-start', paymentMethod === method.id && 'bg-[#F18A21]/20 border-[#F18A21]')}
                                                 onClick={() => setPaymentMethod(method.id)}>
                                                 <method.icon className="h-4 w-4 ml-2" />{method.label}
                                             </Button>
                                         ))}
                                     </div>
+
+                                    {/* تفاصيل اضافية للدفع - محاكاة فقط للواجهة */}
+                                    {paymentMethod === 'visa' && (
+                                        <div className="mt-2 animate-in fade-in">
+                                            <Label>اسم صاحب الكارت</Label>
+                                            <Input className="glass-input mt-1" placeholder="الاسم كما في البطاقة" />
+                                        </div>
+                                    )}
+                                    {paymentMethod === 'wallet' && (
+                                        <div className="mt-2 animate-in fade-in space-y-2">
+                                            <Input className="glass-input" placeholder="اسم صاحب المحفظة" />
+                                            <Input className="glass-input" placeholder="رقم المحفظة" />
+                                        </div>
+                                    )}
+                                    {paymentMethod === 'cairoom' && (
+                                        <div className="mt-2 animate-in fade-in">
+                                            <Label>العضو الدافع</Label>
+                                            <Select>
+                                                <SelectTrigger className="glass-input"><SelectValue placeholder="اختر العضو" /></SelectTrigger>
+                                                <SelectContent className="glass-modal">
+                                                    {endSessionModal.members.map(m => (
+                                                        <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         );

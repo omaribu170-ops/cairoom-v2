@@ -21,7 +21,7 @@ import { formatCurrency, cn } from '@/lib/utils';
 import {
     Play, Square, UserPlus, UserMinus, Search, Clock, Eye,
     CreditCard, Wallet, Smartphone, Banknote, ArrowLeftRight,
-    Plus, Coffee, Minus, X, Building2,
+    Plus, Coffee, Minus, X, Building2, ShoppingBag, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import { SessionTimer } from '@/components/admin/SessionTimer';
 
@@ -65,7 +65,14 @@ interface SessionMember {
     phone: string;
     joinedAt: string;
     leftAt: string | null;
-    orders: { product: string; quantity: number; price: number }[];
+    // لفواتير الأعضاء الذين غادروا مبكراً
+    billDetails?: {
+        duration: number;
+        timeCost: number;
+        ordersCost: number;
+        total: number;
+    };
+    orders: { productId: string; name: string; quantity: number; price: number }[];
 }
 
 interface ActiveSession {
@@ -109,8 +116,8 @@ const initialActiveSessions: ActiveSession[] = [
         id: 'session-1', type: 'table', tableId: '2', tableName: 'طاولة ٢', pricePerHour: 25,
         startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
         members: [
-            { id: 'm1', name: 'أحمد محمد', phone: '01012345678', joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), leftAt: null, orders: [{ product: 'قهوة تركي', quantity: 2, price: 25 }] },
-            { id: 'm2', name: 'سارة أحمد', phone: '01123456789', joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), leftAt: null, orders: [{ product: 'عصير برتقال', quantity: 1, price: 30 }] },
+            { id: 'm1', name: 'أحمد محمد', phone: '01012345678', joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), leftAt: null, orders: [{ productId: 'p1', name: 'قهوة تركي', quantity: 2, price: 25 }] },
+            { id: 'm2', name: 'سارة أحمد', phone: '01123456789', joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), leftAt: null, orders: [{ productId: 'p3', name: 'عصير برتقال', quantity: 1, price: 30 }] },
         ],
         tableHistory: [{ tableId: '2', tableName: 'طاولة ٢', pricePerHour: 25, startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() }]
     },
@@ -118,7 +125,7 @@ const initialActiveSessions: ActiveSession[] = [
         id: 'session-2', type: 'hall', hallName: 'قاعة VIP', tableId: 'h2', tableName: 'غرفة VIP ١ + غرفة VIP ٢', pricePerHour: 350,
         startTime: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
         members: [
-            { id: 'm3', name: 'محمد علي', phone: '01234567890', joinedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(), leftAt: null, orders: [{ product: 'ساندويتش', quantity: 2, price: 40 }] },
+            { id: 'm3', name: 'محمد علي', phone: '01234567890', joinedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(), leftAt: null, orders: [{ productId: 'p4', name: 'ساندويتش', quantity: 2, price: 40 }] },
             { id: 'm4', name: 'عمر حسن', phone: '01098765432', joinedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), leftAt: null, orders: [] },
         ],
         tableHistory: [{ tableId: 'h2', tableName: 'قاعة VIP', pricePerHour: 350, startTime: new Date(Date.now() - 45 * 60 * 1000).toISOString() }]
@@ -139,7 +146,7 @@ const mockHistorySessions: HistorySession[] = [
         id: 'hist-001', type: 'table',
         tablesUsed: ['طاولة ١', 'طاولة ٣'],
         date: '2024-12-28', startTime: '14:00', endTime: '17:30',
-        members: [{ id: 'm1', name: 'أحمد محمد', phone: '01012345678', joinedAt: '', leftAt: '', orders: [{ product: 'قهوة', quantity: 3, price: 25 }] }],
+        members: [{ id: 'm1', name: 'أحمد محمد', phone: '01012345678', joinedAt: '', leftAt: '', orders: [{ productId: 'p1', name: 'قهوة', quantity: 3, price: 25 }] }],
         totalTimeCost: 88, totalOrdersCost: 75, grandTotal: 163
     },
     {
@@ -148,7 +155,7 @@ const mockHistorySessions: HistorySession[] = [
         date: '2024-12-28', startTime: '10:00', endTime: '12:00',
         members: [
             { id: 'm3', name: 'محمد علي', phone: '01234567890', joinedAt: '', leftAt: '', orders: [] },
-            { id: 'm5', name: 'ياسمين خالد', phone: '01156789012', joinedAt: '', leftAt: '', orders: [{ product: 'شاي', quantity: 2, price: 15 }] },
+            { id: 'm5', name: 'ياسمين خالد', phone: '01156789012', joinedAt: '', leftAt: '', orders: [{ productId: 'p2', name: 'شاي', quantity: 2, price: 15 }] },
         ],
         totalTimeCost: 700, totalOrdersCost: 30, grandTotal: 730
     },
@@ -156,7 +163,7 @@ const mockHistorySessions: HistorySession[] = [
         id: 'hist-003', type: 'table',
         tablesUsed: ['طاولة ٣', 'طاولة ٥', 'طاولة ٦'],
         date: '2024-12-27', startTime: '16:00', endTime: '19:00',
-        members: [{ id: 'm2', name: 'سارة أحمد', phone: '01123456789', joinedAt: '', leftAt: '', orders: [{ product: 'عصير', quantity: 2, price: 30 }] }],
+        members: [{ id: 'm2', name: 'سارة أحمد', phone: '01123456789', joinedAt: '', leftAt: '', orders: [{ productId: 'p3', name: 'عصير', quantity: 2, price: 30 }] }],
         totalTimeCost: 60, totalOrdersCost: 60, grandTotal: 120
     },
     {
@@ -173,7 +180,7 @@ const mockHistorySessions: HistorySession[] = [
         id: 'hist-005', type: 'table',
         tablesUsed: ['طاولة ٢'],
         date: '2024-12-25', startTime: '14:00', endTime: '16:00',
-        members: [{ id: 'm4', name: 'عمر حسن', phone: '01098765432', joinedAt: '', leftAt: '', orders: [{ product: 'قهوة', quantity: 1, price: 25 }] }],
+        members: [{ id: 'm4', name: 'عمر حسن', phone: '01098765432', joinedAt: '', leftAt: '', orders: [{ productId: 'p1', name: 'قهوة', quantity: 1, price: 25 }] }],
         totalTimeCost: 50, totalOrdersCost: 25, grandTotal: 75
     },
 ];
@@ -195,6 +202,23 @@ const calculateTimeCost = (minutes: number, pricePerHour: number) => {
     return Math.ceil((minutes / 60) * pricePerHour);
 };
 
+// حساب إجمالي الجلسة مع tableHistory
+const getSessionTotal = (session: ActiveSession) => {
+    let timeCost = 0;
+    const now = Date.now();
+    const activeMembers = session.members.filter(m => !m.leftAt).length;
+
+    session.tableHistory.forEach(th => {
+        const start = new Date(th.startTime).getTime();
+        const end = th.endTime ? new Date(th.endTime).getTime() : now;
+        const hours = (end - start) / (1000 * 60 * 60);
+        timeCost += Math.ceil(hours * th.pricePerHour * activeMembers);
+    });
+
+    const ordersCost = session.members.reduce((sum, m) => sum + m.orders.reduce((s, o) => s + (o.price * o.quantity), 0), 0);
+    return { timeCost, ordersCost, total: timeCost + ordersCost };
+};
+
 export default function SessionsPage() {
     const [activeTab, setActiveTab] = useState('active');
     const [activeSessions, setActiveSessions] = useState<ActiveSession[]>(initialActiveSessions);
@@ -206,9 +230,12 @@ export default function SessionsPage() {
     const [endSessionModal, setEndSessionModal] = useState<ActiveSession | null>(null);
     const [endMemberModal, setEndMemberModal] = useState<{ session: ActiveSession; member: SessionMember } | null>(null);
     const [addMemberModal, setAddMemberModal] = useState<ActiveSession | null>(null);
+    const [addOrderModal, setAddOrderModal] = useState<{ session: ActiveSession; member: SessionMember } | null>(null);
     const [receiptModal, setReceiptModal] = useState<HistorySession | null>(null);
     const [switchTableModal, setSwitchTableModal] = useState<ActiveSession | null>(null);
     const [paymentMethod, setPaymentMethod] = useState<string>('cash');
+    const [paymentDetails, setPaymentDetails] = useState({ cardHolder: '', walletNumber: '', walletOwner: '', cairoomUser: '' }); // تفاصيل الدفع
+    const [cairoomWalletBalance, setCairoomWalletBalance] = useState<number | null>(null); // رصيد المحفظة الوهمي
 
     // Start Session Modal State
     const [startSessionOpen, setStartSessionOpen] = useState(false);
@@ -264,21 +291,77 @@ export default function SessionsPage() {
     // إنهاء الجلسة
     const handleEndSession = () => {
         if (!endSessionModal) return;
+
+        // التحقق من بيانات الدفع
+        if (paymentMethod === 'visa' && !paymentDetails.cardHolder) return toast.error('يرجى إدخال اسم صاحب الكارت');
+        if (paymentMethod === 'wallet' && (!paymentDetails.walletNumber || !paymentDetails.walletOwner)) return toast.error('يرجى إدخال بيانات المحفظة');
+        if (paymentMethod === 'cairoom' && !paymentDetails.cairoomUser) return toast.error('يرجى اختيار العضو صاحب المحفظة');
+        if (paymentMethod === 'cairoom' && cairoomWalletBalance !== null && getSessionTotal(endSessionModal).total > cairoomWalletBalance) return toast.error('الرصيد غير كافي');
+
+        const now = new Date().toISOString();
+        const finalSession = {
+            ...endSessionModal,
+            members: endSessionModal.members.map(m => {
+                if (m.leftAt) return m; // تم إنهاؤه مسبقاً
+                const bill = getMemberBill(m, endSessionModal.pricePerHour);
+                return { ...m, leftAt: now, billDetails: bill };
+            })
+        };
+
         setActiveSessions(activeSessions.filter(s => s.id !== endSessionModal.id));
-        toast.success('تم إنهاء الجلسة وحفظها في السجل');
+        toast.success(`تم إنهاء الجلسة والدفع عن طريق ${getPaymentLabel(paymentMethod)}`);
         setEndSessionModal(null);
+        setPaymentMethod('cash');
+        setPaymentDetails({ cardHolder: '', walletNumber: '', walletOwner: '', cairoomUser: '' });
+        setCairoomWalletBalance(null);
     };
 
     // إنهاء جلسة لعضو
     const handleEndMemberSession = () => {
         if (!endMemberModal) return;
         const { session, member } = endMemberModal;
+
+        // التحقق من بيانات الدفع
+        if (paymentMethod === 'visa' && !paymentDetails.cardHolder) return toast.error('يرجى إدخال اسم صاحب الكارت');
+        if (paymentMethod === 'wallet' && (!paymentDetails.walletNumber || !paymentDetails.walletOwner)) return toast.error('يرجى إدخال بيانات المحفظة');
+        if (paymentMethod === 'cairoom' && !paymentDetails.cairoomUser) return toast.error('يرجى اختيار العضو صاحب المحفظة');
+        if (paymentMethod === 'cairoom' && cairoomWalletBalance !== null && getMemberBill(member, session.pricePerHour).total > cairoomWalletBalance) return toast.error('الرصيد غير كافي');
+
+
+        const bill = getMemberBill(member, session.pricePerHour);
+
         setActiveSessions(activeSessions.map(s => {
             if (s.id !== session.id) return s;
-            return { ...s, members: s.members.map(m => m.id === member.id ? { ...m, leftAt: new Date().toISOString() } : m) };
+            return {
+                ...s,
+                members: s.members.map(m => m.id === member.id ? {
+                    ...m,
+                    leftAt: new Date().toISOString(),
+                    billDetails: bill // حفظ تفاصيل الفاتورة
+                } : m)
+            };
         }));
-        toast.success(`تم إنهاء جلسة ${member.name}`);
+
+        toast.success(`تم إنهاء جلسة ${member.name} والدفع بـ ${getPaymentLabel(paymentMethod)}`);
         setEndMemberModal(null);
+        setPaymentMethod('cash');
+        setPaymentDetails({ cardHolder: '', walletNumber: '', walletOwner: '', cairoomUser: '' });
+        setCairoomWalletBalance(null);
+    };
+
+    const getPaymentLabel = (method: string) => {
+        switch (method) {
+            case 'cash': return 'كاش';
+            case 'visa': return 'بطاقة ائتمان';
+            case 'wallet': return 'محفظة موبايل';
+            case 'cairoom': return 'محفظة CAIROOM';
+            default: return method;
+        }
+    };
+
+    const handleCheckCairoomBalance = (userId: string) => {
+        // محاكاة للتحقق من الرصيد
+        setCairoomWalletBalance(Math.floor(Math.random() * 500) + 100);
     };
 
     // التحقق إذا العضو موجود في جلسة نشطة
@@ -381,21 +464,41 @@ export default function SessionsPage() {
         return { duration, timeCost, ordersCost, total: timeCost + ordersCost };
     };
 
-    // حساب إجمالي الجلسة مع tableHistory
-    const getSessionTotal = (session: ActiveSession) => {
-        let timeCost = 0;
-        const now = Date.now();
-        const activeMembers = session.members.filter(m => !m.leftAt).length;
 
-        session.tableHistory.forEach(th => {
-            const start = new Date(th.startTime).getTime();
-            const end = th.endTime ? new Date(th.endTime).getTime() : now;
-            const hours = (end - start) / (1000 * 60 * 60);
-            timeCost += Math.ceil(hours * th.pricePerHour * activeMembers);
+
+    // إدارة طلبات الأعضاء في الجلسة النشطة
+    const handleUpdateMemberOrder = (memberId: string, productId: string, delta: number) => {
+        if (!addOrderModal) return;
+        const product = mockProducts.find(p => p.id === productId);
+        if (!product) return;
+
+        setActiveSessions(prev => prev.map(s => {
+            if (s.id !== addOrderModal.session.id) return s;
+            return {
+                ...s,
+                members: s.members.map(m => {
+                    if (m.id !== memberId) return m;
+                    const existingOrder = m.orders.find(o => o.productId === productId);
+
+                    if (existingOrder) {
+                        const newQty = existingOrder.quantity + delta;
+                        if (newQty <= 0) return { ...m, orders: m.orders.filter(o => o.productId !== productId) };
+                        return { ...m, orders: m.orders.map(o => o.productId === productId ? { ...o, quantity: newQty } : o) };
+                    } else if (delta > 0) {
+                        return { ...m, orders: [...m.orders, { productId, name: product.name, quantity: 1, price: product.price }] };
+                    }
+                    return m;
+                })
+            };
+        }));
+
+        // تحديث المودال أيضاً ليعكس التغييرات فوراً
+        setAddOrderModal(prev => {
+            if (!prev) return null;
+            const updatedSession = activeSessions.find(s => s.id === prev.session.id);
+            const updatedMember = updatedSession?.members.find(m => m.id === prev.member.id);
+            return updatedMember ? { ...prev, member: updatedMember } : prev;
         });
-
-        const ordersCost = session.members.reduce((sum, m) => sum + m.orders.reduce((s, o) => s + (o.price * o.quantity), 0), 0);
-        return { timeCost, ordersCost, total: timeCost + ordersCost };
     };
 
     // ============ Start Session Functions ============
@@ -479,7 +582,7 @@ export default function SessionsPage() {
                 phone: '',
                 joinedAt: now,
                 leftAt: null,
-                orders: m.orders.map(o => ({ product: o.productName, quantity: o.quantity, price: o.price })),
+                orders: m.orders.map(o => ({ productId: o.productId, name: o.productName, quantity: o.quantity, price: o.price })),
             })),
             tableHistory: [{
                 tableId: sessionType === 'table' ? selectedTable : selectedHall,
@@ -582,10 +685,21 @@ export default function SessionsPage() {
                                                                 <Avatar className="h-8 w-8"><AvatarFallback className="bg-gradient-to-br from-[#E63E32] to-[#F8C033] text-white text-xs">{member.name.charAt(0)}</AvatarFallback></Avatar>
                                                                 <div>
                                                                     <p className="font-medium text-sm">{member.name}</p>
-                                                                    <p className="text-xs text-muted-foreground">{formatDuration(bill.duration)} • {formatCurrency(bill.total)}</p>
+                                                                    {/* عرض تفاصيل الطلبات في الكارد */}
+                                                                    {member.orders.length > 0 && (
+                                                                        <div className="text-xs text-muted-foreground my-1 flex flex-wrap gap-1">
+                                                                            {member.orders.map((o, idx) => (
+                                                                                <span key={idx} className="bg-white/10 px-1 rounded">{o.name} ({o.quantity})</span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                    <p className="text-xs text-muted-foreground font-mono">{formatDuration(bill.duration)} • {formatCurrency(bill.total)}</p>
                                                                 </div>
                                                             </div>
-                                                            <Button size="sm" variant="ghost" className="text-red-400 h-8" onClick={() => setEndMemberModal({ session, member })}><UserMinus className="h-4 w-4" /></Button>
+                                                            <div className="flex items-center gap-1">
+                                                                <Button size="sm" variant="ghost" className="text-[#F18A21] h-8 w-8 p-0" onClick={() => setAddOrderModal({ session, member })}><ShoppingBag className="h-4 w-4" /></Button>
+                                                                <Button size="sm" variant="ghost" className="text-red-400 h-8 w-8 p-0" onClick={() => setEndMemberModal({ session, member })}><UserMinus className="h-4 w-4" /></Button>
+                                                            </div>
                                                         </div>
                                                     );
                                                 })}
@@ -719,13 +833,96 @@ export default function SessionsPage() {
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>طريقة الدفع</Label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {[{ id: 'cash', label: 'كاش', icon: Banknote }, { id: 'visa', label: 'فيزا', icon: CreditCard },
-                                        { id: 'wallet', label: 'موبايل', icon: Smartphone }, { id: 'cairoom', label: 'CAIROOM', icon: Wallet }].map(method => (
-                                            <Button key={method.id} variant="ghost" className={cn('glass-button h-12', paymentMethod === method.id && 'bg-[#F18A21]/20 border-[#F18A21]')}
-                                                onClick={() => setPaymentMethod(method.id)}><method.icon className="h-4 w-4 ml-2" />{method.label}</Button>
-                                        ))}
+                                    <div className="space-y-3">
+                                        <Label>طريقة الدفع</Label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {[{ id: 'cash', label: 'كاش', icon: Banknote }, { id: 'visa', label: 'كارت', icon: CreditCard },
+                                            { id: 'wallet', label: 'محفظة موبيل', icon: Smartphone }, { id: 'cairoom', label: 'محفظة CAIROOM', icon: Wallet }].map(method => (
+                                                <Button key={method.id} variant="ghost" className={cn('glass-button h-12 justify-start', paymentMethod === method.id && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                                                    onClick={() => {
+                                                        setPaymentMethod(method.id);
+                                                        setCairoomWalletBalance(null);
+                                                        // لمن يدفع الجلسة كاملة، نفترض أول عضو هو الدافع افتراضياً أو نطلب البحث
+                                                        if (method.id === 'cairoom' && endSessionModal.members.length > 0) {
+                                                            const firstMember = endSessionModal.members.find(m => !m.leftAt);
+                                                            if (firstMember) {
+                                                                setPaymentDetails({ ...paymentDetails, cairoomUser: firstMember.id });
+                                                                handleCheckCairoomBalance(firstMember.id);
+                                                            }
+                                                        }
+                                                    }}>
+                                                    <method.icon className="h-4 w-4 ml-2" />
+                                                    {method.label}
+                                                </Button>
+                                            ))}
+                                        </div>
+
+                                        {/* تفاصيل الفيزا */}
+                                        {paymentMethod === 'visa' && (
+                                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                                <Label>اسم صاحب الكارت</Label>
+                                                <Input
+                                                    className="glass-input"
+                                                    placeholder="الاسم المكتوب على الكارت"
+                                                    value={paymentDetails.cardHolder}
+                                                    onChange={(e) => setPaymentDetails({ ...paymentDetails, cardHolder: e.target.value })}
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* تفاصيل محفظة الموبايل */}
+                                        {paymentMethod === 'wallet' && (
+                                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <Label>اسم صاحب المحفظة</Label>
+                                                        <Input
+                                                            className="glass-input"
+                                                            placeholder="الاسم"
+                                                            value={paymentDetails.walletOwner}
+                                                            onChange={(e) => setPaymentDetails({ ...paymentDetails, walletOwner: e.target.value })}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <Label>رقم المحفظة</Label>
+                                                        <Input
+                                                            className="glass-input"
+                                                            placeholder="01xxxxxxxxx"
+                                                            value={paymentDetails.walletNumber}
+                                                            onChange={(e) => setPaymentDetails({ ...paymentDetails, walletNumber: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* تفاصيل محفظة كايروم */}
+                                        {paymentMethod === 'cairoom' && (
+                                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                                <Label>العضو الذي سيدفع</Label>
+                                                <Select
+                                                    value={paymentDetails.cairoomUser}
+                                                    onValueChange={(val) => {
+                                                        setPaymentDetails({ ...paymentDetails, cairoomUser: val });
+                                                        handleCheckCairoomBalance(val);
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="glass-input"><SelectValue placeholder="اختر العضو" /></SelectTrigger>
+                                                    <SelectContent className="glass-modal">
+                                                        {endSessionModal.members.filter(m => !m.leftAt).map(m => (
+                                                            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                {cairoomWalletBalance !== null && (
+                                                    <div className={cn("p-2 rounded text-sm flex justify-between items-center",
+                                                        cairoomWalletBalance >= totals.total ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400")}>
+                                                        <span>الرصيد: {formatCurrency(cairoomWalletBalance)}</span>
+                                                        {cairoomWalletBalance < totals.total && <span>رصيد غير كافي</span>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -756,21 +953,91 @@ export default function SessionsPage() {
                                     <div className="flex justify-between"><span>الطلبات</span><span>{formatCurrency(bill.ordersCost)}</span></div>
                                     <div className="border-t border-white/10 pt-2 flex justify-between font-bold"><span>الإجمالي</span><span className="gradient-text">{formatCurrency(bill.total)}</span></div>
                                 </div>
-                                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                                    <SelectTrigger className="glass-input"><SelectValue /></SelectTrigger>
-                                    <SelectContent className="glass-modal">
-                                        <SelectItem value="cash">كاش</SelectItem>
-                                        <SelectItem value="visa">فيزا</SelectItem>
-                                        <SelectItem value="wallet">موبايل والت</SelectItem>
-                                        <SelectItem value="cairoom">CAIROOM Wallet</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <Button size="sm" variant={paymentMethod === 'cash' ? 'default' : 'ghost'} className={cn(paymentMethod === 'cash' ? 'gradient-button' : 'glass-button', "flex-1")} onClick={() => setPaymentMethod('cash')}>كاش</Button>
+                                <Button size="sm" variant={paymentMethod === 'visa' ? 'default' : 'ghost'} className={cn(paymentMethod === 'visa' ? 'gradient-button' : 'glass-button', "flex-1")} onClick={() => setPaymentMethod('visa')}>كارت</Button>
+                                <Button size="sm" variant={paymentMethod === 'wallet' ? 'default' : 'ghost'} className={cn(paymentMethod === 'wallet' ? 'gradient-button' : 'glass-button', "flex-1")} onClick={() => setPaymentMethod('wallet')}>محفظة</Button>
+                                <Button size="sm" variant={paymentMethod === 'cairoom' ? 'default' : 'ghost'} className={cn(paymentMethod === 'cairoom' ? 'gradient-button' : 'glass-button', "flex-1")} onClick={() => {
+                                    setPaymentMethod('cairoom');
+                                    setPaymentDetails({ ...paymentDetails, cairoomUser: endMemberModal.member.id });
+                                    handleCheckCairoomBalance(endMemberModal.member.id);
+                                }}>Cairoom</Button>
+                                {/* تفاصيل طريقة الدفع للعضو */}
+                                <div className="mt-4 space-y-3">
+                                    {paymentMethod === 'visa' && (
+                                        <Input placeholder="اسم صاحب الكارت" value={paymentDetails.cardHolder} onChange={(e) => setPaymentDetails({ ...paymentDetails, cardHolder: e.target.value })} className="glass-input" />
+                                    )}
+                                    {paymentMethod === 'wallet' && (
+                                        <>
+                                            <Input placeholder="اسم صاحب المحفظة" value={paymentDetails.walletOwner} onChange={(e) => setPaymentDetails({ ...paymentDetails, walletOwner: e.target.value })} className="glass-input" />
+                                            <Input placeholder="رقم المحفظة" value={paymentDetails.walletNumber} onChange={(e) => setPaymentDetails({ ...paymentDetails, walletNumber: e.target.value })} className="glass-input" />
+                                        </>
+                                    )}
+                                    {paymentMethod === 'cairoom' && (
+                                        <div className={cn("p-3 rounded text-center text-sm", cairoomWalletBalance !== null && cairoomWalletBalance >= bill.total ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400")}>
+                                            {cairoomWalletBalance !== null ? `الرصيد: ${formatCurrency(cairoomWalletBalance)}` : 'جاري التحقق...'}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         );
                     })()}
                     <DialogFooter className="gap-2">
                         <Button variant="ghost" className="glass-button" onClick={() => setEndMemberModal(null)}>إلغاء</Button>
                         <Button className="gradient-button" onClick={handleEndMemberSession}>إنهاء وحفظ</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* نافذة إضافة طلبات للعضو */}
+            <Dialog open={!!addOrderModal} onOpenChange={() => setAddOrderModal(null)}>
+                <DialogContent className="glass-modal sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="gradient-text text-xl">إضافة طلبات</DialogTitle>
+                        <DialogDescription>{addOrderModal?.member.name}</DialogDescription>
+                    </DialogHeader>
+                    {addOrderModal && (
+                        <div className="space-y-4 py-4">
+                            <div className="flex flex-wrap gap-2">
+                                {mockProducts.map(product => {
+                                    // نستخدم نسخة محدثة من العضو من الستيت
+                                    const currentMember = activeSessions.find(s => s.id === addOrderModal.session.id)?.members.find(m => m.id === addOrderModal.member.id);
+                                    const order = currentMember?.orders.find(o => o.productId === product.id);
+                                    return (
+                                        <div key={product.id} className={cn('flex items-center gap-2 glass-card p-2 rounded-lg cursor-pointer transition-all', order && 'bg-[#F18A21]/20 border-[#F18A21]')}>
+                                            <div className="flex-1">
+                                                <p className="font-medium text-sm">{product.name}</p>
+                                                <p className="text-xs text-muted-foreground">{formatCurrency(product.price)}</p>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <Button size="icon" variant="ghost" className="h-6 w-6 rounded-full bg-white/5 hover:bg-white/10"
+                                                    onClick={() => handleUpdateMemberOrder(addOrderModal.member.id, product.id, -1)} disabled={!order}>
+                                                    <Minus className="h-3 w-3" />
+                                                </Button>
+                                                <span className="w-4 text-center text-sm font-bold">{order?.quantity || 0}</span>
+                                                <Button size="icon" variant="ghost" className="h-6 w-6 rounded-full bg-white/5 hover:bg-white/10"
+                                                    onClick={() => handleUpdateMemberOrder(addOrderModal.member.id, product.id, 1)}>
+                                                    <Plus className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div className="glass-card p-3">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-muted-foreground">إجمالي الطلبات</span>
+                                    <span className="font-bold text-lg">
+                                        {formatCurrency(
+                                            (activeSessions.find(s => s.id === addOrderModal.session.id)?.members.find(m => m.id === addOrderModal.member.id)?.orders || [])
+                                                .reduce((sum, o) => sum + (o.price * o.quantity), 0)
+                                        )}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button className="gradient-button w-full" onClick={() => setAddOrderModal(null)}>إغلاق</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -879,7 +1146,7 @@ export default function SessionsPage() {
                                         </div>
                                         {member.orders.length > 0 && (
                                             <div className="text-xs text-muted-foreground mr-10">
-                                                {member.orders.map((o, j) => <span key={j}>{o.product} × {o.quantity}</span>)}
+                                                {member.orders.map((o, j) => <span key={j}>{o.name} × {o.quantity}</span>)}
                                             </div>
                                         )}
                                     </div>
@@ -1043,6 +1310,6 @@ export default function SessionsPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 }
