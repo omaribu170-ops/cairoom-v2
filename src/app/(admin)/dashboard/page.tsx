@@ -34,9 +34,9 @@ const periodLabels: Record<TimePeriod, string> = {
 
 // بيانات تجريبية للقاعات
 const mockHalls = [
-    { id: 'h1', name: 'القاعة الرئيسية', tables: ['1', '2', '3'], price_per_hour: 200 },
-    { id: 'h2', name: 'قاعة VIP', tables: ['4', '5'], price_per_hour: 350 },
-    { id: 'h3', name: 'الحديقة', tables: ['6'], price_per_hour: 150 },
+    { id: 'h1', name: 'القاعة الرئيسية', capacity_min: 10, capacity_max: 50, price_per_hour: 200 },
+    { id: 'h2', name: 'قاعة VIP', capacity_min: 5, capacity_max: 20, price_per_hour: 350 },
+    { id: 'h3', name: 'قاعة الحديقة', capacity_min: 20, capacity_max: 100, price_per_hour: 500 },
 ];
 
 // بيانات تجريبية للطاولات
@@ -72,7 +72,7 @@ interface SessionMember {
     name: string;
     phone?: string;
     joinedAt?: string;
-    leftAt?: string | null;
+    leftAt: string | null;
     billDetails?: {
         duration: number;
         timeCost: number;
@@ -85,33 +85,32 @@ interface SessionMember {
 interface ActiveSession {
     id: string;
     type: 'table' | 'hall';
-    hallName?: string; // اسم القاعة (لو نوعها hall)
-    hallId?: string;
-    tableId?: string;
-    tableIds?: string[]; // For backward compatibility if needed, or stick to one style
+    hallName?: string;
+    tableId: string;
     tableName: string;
     pricePerHour: number;
     startTime: string;
     members: SessionMember[];
     tableHistory: { tableId: string; tableName: string; pricePerHour: number; startTime: string; endTime?: string }[];
+    hallTableIds?: string[];
 }
 
 const initialActiveSessions: ActiveSession[] = [
     {
-        id: 's1', type: 'table', tableIds: ['2'], tableName: 'طاولة ٢', pricePerHour: 25,
+        id: 's1', type: 'table', tableId: '2', tableName: 'طاولة ٢', pricePerHour: 25,
         startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
         members: [
-            { id: 'm1', name: 'أحمد محمد', orders: [{ productId: 'p1', name: 'قهوة تركي', quantity: 2, price: 25 }] },
-            { id: 'm2', name: 'سارة أحمد', orders: [{ productId: 'p3', name: 'عصير برتقال', quantity: 1, price: 30 }] },
+            { id: 'm1', name: 'أحمد محمد', joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), leftAt: null, orders: [{ productId: 'p1', name: 'قهوة تركي', quantity: 2, price: 25 }] },
+            { id: 'm2', name: 'سارة أحمد', joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), leftAt: null, orders: [{ productId: 'p3', name: 'عصير برتقال', quantity: 1, price: 30 }] },
         ],
         tableHistory: [{ tableId: '2', tableName: 'طاولة ٢', pricePerHour: 25, startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() }]
     },
     {
-        id: 's2', type: 'hall', tableIds: ['4', '5'], tableName: 'غرفة VIP ١ + غرفة VIP ٢', hallId: 'h2', hallName: 'قاعة VIP', pricePerHour: 350,
+        id: 's2', type: 'hall', tableId: 'h2', tableName: 'غرفة VIP ١ + غرفة VIP ٢', hallName: 'قاعة VIP', pricePerHour: 350,
         startTime: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
         members: [
-            { id: 'm3', name: 'محمد علي', orders: [{ productId: 'p4', name: 'ساندويتش جبنة', quantity: 2, price: 40 }] },
-            { id: 'm4', name: 'عمر حسن', orders: [] },
+            { id: 'm3', name: 'محمد علي', joinedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(), leftAt: null, orders: [{ productId: 'p4', name: 'ساندويتش جبنة', quantity: 2, price: 40 }] },
+            { id: 'm4', name: 'عمر حسن', joinedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), leftAt: null, orders: [] },
         ],
         tableHistory: [{ tableId: 'h2', tableName: 'قاعة VIP', pricePerHour: 350, startTime: new Date(Date.now() - 45 * 60 * 1000).toISOString() }]
     },
@@ -142,7 +141,7 @@ export default function AdminDashboardPage() {
     const [selectedHall, setSelectedHall] = useState<string>('');
     const [hallTableMode, setHallTableMode] = useState<'hall' | 'any'>('hall'); // اختيار طاولات القاعة أو أي طاولة متاحة
     const [selectedHallTables, setSelectedHallTables] = useState<string[]>([]);
-    const [sessionMembers, setSessionMembers] = useState<SessionMember[]>([]);
+    const [sessionMembers, setSessionMembers] = useState<{ id: string; name: string; orders: { productId: string; productName: string; quantity: number; price: number }[] }[]>([]);
     const [memberSearch, setMemberSearch] = useState('');
     const [showAddMember, setShowAddMember] = useState(false);
     const [newMemberName, setNewMemberName] = useState('');
@@ -158,8 +157,16 @@ export default function AdminDashboardPage() {
     const [switchTableModal, setSwitchTableModal] = useState<ActiveSession | null>(null);
 
     const stats = useMemo(() => getStatsByPeriod(timePeriod), [timePeriod]);
-    const availableTables = mockTables.filter(t => t.status === 'available');
-    const hallTables = selectedHall ? mockTables.filter(t => t.hallId === selectedHall && t.status === 'available') : [];
+
+    // الطاولات المتاحة فعلياً (تستثني الطاولات المشغولة في جلسات القاعات)
+    const availableTables = mockTables.filter(t => {
+        if (t.status !== 'available') return false;
+        // هل الطاولة مستخدمة في أي جلسة قاعة نشطة؟
+        const isBusyInHall = activeSessions.some(s => s.type === 'hall' && s.hallTableIds?.includes(t.id));
+        return !isBusyInHall;
+    });
+
+    const hallTables = selectedHall ? mockTables.filter(t => t.hallId === selectedHall && t.status === 'available' && !activeSessions.some(s => s.type === 'hall' && s.hallTableIds?.includes(t.id))) : [];
     const allAvailableTables = mockTables.filter(t => t.status === 'available');
     const filteredMembers = mockMembers.filter(m =>
         m.full_name.toLowerCase().includes(memberSearch.toLowerCase()) || m.phone.includes(memberSearch)
@@ -178,14 +185,12 @@ export default function AdminDashboardPage() {
         return session ? (session.hallName || session.tableName) : null;
     };
 
-    // إضافة عضو موجود للجلسة
+    // إضافة عضو موجود للجلسة الجديدة
     const handleAddExistingMember = (member: typeof mockMembers[0]) => {
-        // التحقق إذا العضو موجود بالفعل في الجلسة الحالية
         if (sessionMembers.find(m => m.id === member.id)) {
             setMemberSearch('');
             return;
         }
-        // التحقق إذا العضو موجود في جلسة نشطة أخرى
         if (isMemberInActiveSession(member.id)) {
             const sessionName = getMemberActiveSessionName(member.id);
             toast.error(`${member.full_name} موجود بالفعل في جلسة نشطة (${sessionName})`);
@@ -195,9 +200,16 @@ export default function AdminDashboardPage() {
         setMemberSearch('');
     };
 
-    // إضافة عضو جديد
-    const handleAddNewMember = () => {
+    // إضافة عضو جديد (للقاعدة والجلسة)
+    const handleAddNewMemberToSession = () => {
         if (!newMemberName.trim() || !newMemberPhone.trim()) return;
+
+        // التحقق من تكرار رقم الهاتف
+        if (mockMembers.some(m => m.phone === newMemberPhone)) {
+            toast.error('رقم الهاتف موجود بالفعل لمستخدم آخر');
+            return;
+        }
+
         const newId = `new-${Date.now()}`;
         setSessionMembers([...sessionMembers, { id: newId, name: newMemberName, orders: [] }]);
         toast.success(`تم إضافة ${newMemberName} للقاعدة والجلسة`);
@@ -207,27 +219,24 @@ export default function AdminDashboardPage() {
         setShowAddMember(false);
     };
 
-    // إزالة عضو
-    const handleRemoveMember = (memberId: string) => {
+    // إزالة عضو من الجلسة الجديدة
+    const handleRemoveSessionMember = (memberId: string) => {
         setSessionMembers(sessionMembers.filter(m => m.id !== memberId));
     };
 
-    // إضافة/تقليل منتج لعضو
+    // إضافة/تقليل منتج لعضو في الجلسة الجديدة
     const handleAdjustProduct = (memberId: string, productId: string, delta: number) => {
         const product = mockProducts.find(p => p.id === productId);
         if (!product) return;
-
         setSessionMembers(sessionMembers.map(m => {
             if (m.id !== memberId) return m;
             const existingOrder = m.orders.find(o => o.productId === productId);
             if (existingOrder) {
                 const newQty = existingOrder.quantity + delta;
-                if (newQty <= 0) {
-                    return { ...m, orders: m.orders.filter(o => o.productId !== productId) };
-                }
+                if (newQty <= 0) return { ...m, orders: m.orders.filter(o => o.productId !== productId) };
                 return { ...m, orders: m.orders.map(o => o.productId === productId ? { ...o, quantity: newQty } : o) };
             } else if (delta > 0) {
-                return { ...m, orders: [...m.orders, { productId, name: product.name, quantity: 1, price: product.price }] };
+                return { ...m, orders: [...m.orders, { productId, productName: product.name, quantity: 1, price: product.price }] };
             }
             return m;
         }));
@@ -235,9 +244,7 @@ export default function AdminDashboardPage() {
 
     // تبديل طاولة في القاعة
     const toggleHallTable = (tableId: string) => {
-        setSelectedHallTables(prev =>
-            prev.includes(tableId) ? prev.filter(id => id !== tableId) : [...prev, tableId]
-        );
+        setSelectedHallTables(prev => prev.includes(tableId) ? prev.filter(id => id !== tableId) : [...prev, tableId]);
     };
 
     // إدارة طلبات الأعضاء في الجلسة النشطة
@@ -289,19 +296,26 @@ export default function AdminDashboardPage() {
         const newSession: ActiveSession = {
             id: `session-${Date.now()}`,
             type: sessionType,
-            tableIds: sessionType === 'table' ? [selectedTable] : selectedHallTables,
-            tableName: sessionType === 'table' ? (table?.name || '') : tableNames,
-            hallId: sessionType === 'hall' ? selectedHall : undefined,
             hallName: sessionType === 'hall' ? hall?.name : undefined,
+            tableId: sessionType === 'table' ? selectedTable : selectedHall,
+            tableName: sessionType === 'table' ? (table?.name || '') : tableNames,
             pricePerHour,
             startTime: now,
-            members: sessionMembers,
+            members: sessionMembers.map(m => ({
+                id: m.id,
+                name: m.name,
+                phone: '', // يمكن إضافته إذا كان متاحاً
+                joinedAt: now,
+                leftAt: null,
+                orders: m.orders.map(o => ({ productId: o.productId, name: o.productName, quantity: o.quantity, price: o.price })),
+            })),
             tableHistory: [{
                 tableId: sessionType === 'table' ? selectedTable : selectedHall,
                 tableName: sessionType === 'table' ? (table?.name || '') : (hall?.name || ''),
                 pricePerHour,
                 startTime: now,
             }],
+            hallTableIds: sessionType === 'hall' ? selectedHallTables : undefined,
         };
 
         setActiveSessions([...activeSessions, newSession]);
@@ -314,6 +328,7 @@ export default function AdminDashboardPage() {
         setSessionType('table');
         setSelectedTable('');
         setSelectedHall('');
+        setHallTableMode('hall');
         setSelectedHallTables([]);
         setSessionMembers([]);
     };
@@ -370,7 +385,7 @@ export default function AdminDashboardPage() {
             });
             return {
                 ...s,
-                tableIds: [newTableId],
+                tableId: newTableId,
                 tableName: newTable.name,
                 pricePerHour: newTable.price_per_hour_per_person,
                 tableHistory: updatedHistory,
@@ -521,7 +536,7 @@ export default function AdminDashboardPage() {
                 </CardHeader>
                 <CardContent className="p-0">
                     {activeSessions.length === 0 ? (
-                        <div className="p-12 text-center text-muted-foreground">لا توجد جلسات نشطة</div>
+                        <div className="p-12 text-center text-muted-foreground"><Play className="h-12 w-12 mx-auto text-muted-foreground mb-4" />لا توجد جلسات نشطة</div>
                     ) : (
                         <div className="divide-y divide-white/5">
                             {activeSessions.map((session) => {
@@ -531,13 +546,16 @@ export default function AdminDashboardPage() {
                                         <div className="flex items-start justify-between mb-3">
                                             <div>
                                                 <div className="flex items-center gap-2">
-                                                    <h4 className="font-medium">{session.tableName}</h4>
-                                                    {session.hallName && <Badge variant="outline" className="text-xs">{session.hallName}</Badge>}
+                                                    <h4 className="font-medium text-lg">{session.tableName}</h4>
+                                                    <Badge variant="outline" className={cn('text-xs', session.type === 'hall' ? 'border-[#F18A21] text-[#F18A21]' : 'border-emerald-500 text-emerald-400')}>
+                                                        {session.type === 'hall' ? (session.hallName || 'قاعة') : 'طاولة'}
+                                                    </Badge>
                                                 </div>
                                                 <div className="flex flex-wrap gap-1 mt-2">
                                                     {/* عرض الأعضاء مع زر إضافة طلب */}
                                                     {session.members.filter(m => !m.leftAt).map(member => (
-                                                        <div key={member.id} className="flex items-center gap-2 bg-white/5 rounded-full pl-1 pr-3 py-1 text-xs group">
+                                                        <div key={member.id} className="flex items-center gap-2 bg-white/5 rounded-full pl-1 pr-3 py-1 text-xs group hover:bg-white/10 transition-colors">
+                                                            <Avatar className="h-5 w-5"><AvatarFallback className="bg-gradient-to-br from-[#E63E32] to-[#F8C033] text-white text-[8px]">{member.name.charAt(0)}</AvatarFallback></Avatar>
                                                             <span>{member.name}</span>
                                                             <button
                                                                 className="h-5 w-5 flex items-center justify-center rounded-full bg-white/10 hover:bg-[#F18A21] hover:text-white transition-colors"
@@ -548,6 +566,11 @@ export default function AdminDashboardPage() {
                                                         </div>
                                                     ))}
                                                 </div>
+                                                {session.tableHistory.length > 1 && (
+                                                    <p className="text-xs text-muted-foreground mt-2">
+                                                        الطاولات: {session.tableHistory.map(th => th.tableName).join(' → ')}
+                                                    </p>
+                                                )}
                                             </div>
                                             <div className="text-left flex items-center gap-3">
                                                 <div>
@@ -566,20 +589,19 @@ export default function AdminDashboardPage() {
                                         </div>
                                         {/* عرض الطلبات لكل عضو */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
-                                            {session.members.map(member => (
-                                                <div key={member.id}>
-                                                    {member.orders.length > 0 && (
-                                                        <div className="bg-white/5 rounded-lg p-2 text-xs">
-                                                            <span className="font-medium text-[#F18A21]">{member.name}:</span>
-                                                            <div className="flex flex-wrap gap-2 mt-1">
-                                                                {member.orders.map((o, idx) => (
-                                                                    <Badge key={idx} variant="secondary" className="text-[10px] h-5 bg-white/10 hover:bg-white/20">
-                                                                        {o.name} <span className="mx-1 text-muted-foreground">×{o.quantity}</span>
-                                                                    </Badge>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                            {session.members.filter(m => m.orders.length > 0).map(member => (
+                                                <div key={member.id} className="bg-white/5 rounded-lg p-2 text-xs">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <span className="font-medium text-[#F18A21]">{member.name}:</span>
+                                                        <span className="text-[10px] text-muted-foreground">{formatCurrency(member.orders.reduce((sum, o) => sum + (o.price * o.quantity), 0))}</span>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {member.orders.map((o, idx) => (
+                                                            <Badge key={idx} variant="secondary" className="text-[10px] h-5 bg-white/10 hover:bg-white/20 font-normal">
+                                                                {o.name} <span className="mx-1 text-muted-foreground opacity-70">x{o.quantity}</span>
+                                                            </Badge>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -591,153 +613,139 @@ export default function AdminDashboardPage() {
                 </CardContent>
             </Card>
 
-            {/* نافذة بدء جلسة جديدة - Table / Hall */}
-            <Dialog open={startSessionOpen} onOpenChange={(open) => { if (!open) resetSessionModal(); else setStartSessionOpen(true); }}>
+            {/* نافذة بدء جلسة جديدة */}
+            <Dialog open={startSessionOpen} onOpenChange={resetSessionModal}>
                 <DialogContent className="glass-modal sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="gradient-text text-xl">بدء جلسة جديدة</DialogTitle>
                     </DialogHeader>
-
-                    {/* تبويبات طاولة / قاعة */}
-                    <Tabs value={sessionType} onValueChange={(v) => setSessionType(v as 'table' | 'hall')}>
-                        <TabsList className="w-full glass-card">
+                    <Tabs value={sessionType} onValueChange={(v) => { setSessionType(v as 'table' | 'hall'); setSelectedTable(''); setSelectedHall(''); setSelectedHallTables([]); }}>
+                        <TabsList className="glass-card w-full">
                             <TabsTrigger value="table" className="flex-1 gap-2"><Table2 className="h-4 w-4" />طاولة</TabsTrigger>
                             <TabsTrigger value="hall" className="flex-1 gap-2"><Building2 className="h-4 w-4" />قاعة</TabsTrigger>
                         </TabsList>
 
                         {/* تبويب الطاولة */}
                         <TabsContent value="table" className="space-y-4 mt-4">
-                            <div className="space-y-2">
-                                <Label>اختر الطاولة *</Label>
-                                <Select value={selectedTable} onValueChange={setSelectedTable}>
-                                    <SelectTrigger className="glass-input"><SelectValue placeholder="اختر طاولة" /></SelectTrigger>
-                                    <SelectContent className="glass-modal">
-                                        {availableTables.map(table => (
-                                            <SelectItem key={table.id} value={table.id}>
-                                                {table.name} ({table.capacity_min}-{table.capacity_max}) - {formatCurrency(table.price_per_hour_per_person)}/س/فرد
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                            <div>
+                                <Label>اختر الطاولة</Label>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+                                    {availableTables.map(t => (
+                                        <button key={t.id} onClick={() => setSelectedTable(t.id)}
+                                            className={cn('glass-card p-3 text-right transition-colors', selectedTable === t.id && 'bg-[#F18A21]/20 border-[#F18A21]')}>
+                                            <p className="font-medium">{t.name}</p>
+                                            <p className="text-xs text-muted-foreground">{formatCurrency(t.price_per_hour_per_person)}/س/فرد</p>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </TabsContent>
 
                         {/* تبويب القاعة */}
                         <TabsContent value="hall" className="space-y-4 mt-4">
-                            <div className="space-y-2">
-                                <Label>اختر القاعة *</Label>
-                                <Select value={selectedHall} onValueChange={(v) => { setSelectedHall(v); setSelectedHallTables([]); }}>
-                                    <SelectTrigger className="glass-input"><SelectValue placeholder="اختر قاعة" /></SelectTrigger>
-                                    <SelectContent className="glass-modal">
-                                        {mockHalls.map(hall => (
-                                            <SelectItem key={hall.id} value={hall.id}>{hall.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                            <div>
+                                <Label>اختر القاعة</Label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                                    {mockHalls.map(h => (
+                                        <button key={h.id} onClick={() => { setSelectedHall(h.id); setSelectedHallTables([]); }}
+                                            className={cn('glass-card p-3 text-right transition-colors', selectedHall === h.id && 'bg-[#F18A21]/20 border-[#F18A21]')}>
+                                            <p className="font-medium">{h.name}</p>
+                                            <p className="text-xs text-muted-foreground">{h.capacity_min}-{h.capacity_max} • {formatCurrency(h.price_per_hour)}/ساعة</p>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                             {selectedHall && (
-                                <div className="space-y-3">
+                                <>
                                     {/* اختيار نوع الطاولات */}
-                                    <Label>اختر الطاولات *</Label>
-                                    <div className="flex gap-2">
-                                        <Button size="sm" variant="ghost" className={cn('glass-button flex-1', hallTableMode === 'hall' && 'bg-[#F18A21]/20 border-[#F18A21]')}
-                                            onClick={() => { setHallTableMode('hall'); setSelectedHallTables([]); }}>
-                                            طاولات القاعة فقط
-                                        </Button>
-                                        <Button size="sm" variant="ghost" className={cn('glass-button flex-1', hallTableMode === 'any' && 'bg-[#F18A21]/20 border-[#F18A21]')}
-                                            onClick={() => { setHallTableMode('any'); setSelectedHallTables([]); }}>
-                                            أي طاولة متاحة
-                                        </Button>
+                                    <div>
+                                        <Label>اختر الطاولات</Label>
+                                        <div className="flex gap-2 mt-2">
+                                            <Button size="sm" variant="ghost" className={cn('glass-button flex-1', hallTableMode === 'hall' && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                                                onClick={() => { setHallTableMode('hall'); setSelectedHallTables([]); }}>
+                                                طاولات القاعة فقط
+                                            </Button>
+                                            <Button size="sm" variant="ghost" className={cn('glass-button flex-1', hallTableMode === 'any' && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                                                onClick={() => { setHallTableMode('any'); setSelectedHallTables([]); }}>
+                                                أي طاولة متاحة
+                                            </Button>
+                                        </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {(hallTableMode === 'hall' ? hallTables : allAvailableTables).map(table => (
-                                            <div key={table.id} className={cn('glass-card p-3 cursor-pointer transition-all', selectedHallTables.includes(table.id) && 'bg-[#F18A21]/20 border-[#F18A21]')}
-                                                onClick={() => toggleHallTable(table.id)}>
-                                                <div className="flex items-center gap-2">
-                                                    <Checkbox checked={selectedHallTables.includes(table.id)} />
-                                                    <span>{table.name}</span>
-                                                </div>
-                                            </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                        {(hallTableMode === 'hall' ? hallTables : allAvailableTables).map(t => (
+                                            <button key={t.id} onClick={() => toggleHallTable(t.id)}
+                                                className={cn('glass-card p-2 text-right text-sm transition-colors', selectedHallTables.includes(t.id) && 'bg-[#F18A21]/20 border-[#F18A21]')}>
+                                                {t.name}
+                                            </button>
                                         ))}
                                     </div>
-                                    {(hallTableMode === 'hall' ? hallTables : allAvailableTables).length === 0 && <p className="text-sm text-muted-foreground">لا توجد طاولات متاحة</p>}
                                     {selectedHallTables.length > 0 && (
                                         <p className="text-xs text-muted-foreground">تم اختيار: {selectedHallTables.map(id => mockTables.find(t => t.id === id)?.name).join(', ')}</p>
                                     )}
-                                </div>
+                                </>
                             )}
                         </TabsContent>
                     </Tabs>
 
-                    {/* إضافة الأعضاء - مشترك */}
-                    <div className="space-y-4 mt-4 border-t border-white/10 pt-4">
-                        <Label>الأعضاء *</Label>
-                        <div className="flex gap-2">
-                            <div className="relative flex-1">
-                                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input placeholder="ابحث عن عضو..." value={memberSearch} onChange={(e) => setMemberSearch(e.target.value)} className="glass-input pr-10" />
-                            </div>
-                            <Button variant="ghost" className="glass-button" onClick={() => setShowAddMember(true)}>
-                                <UserPlus className="h-4 w-4 ml-1" />جديد
-                            </Button>
+                    {/* الأعضاء */}
+                    <div className="space-y-3 border-t border-white/10 pt-4 mt-4">
+                        <div className="flex items-center justify-between">
+                            <Label>الأعضاء ({sessionMembers.length})</Label>
+                            <Button size="sm" variant="ghost" className="glass-button" onClick={() => setShowAddMember(true)}><UserPlus className="h-4 w-4 ml-1" />إضافة عضو</Button>
                         </div>
-
-                        {/* نتائج البحث */}
+                        <div className="relative">
+                            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input placeholder="ابحث عن عضو..." value={memberSearch} onChange={(e) => setMemberSearch(e.target.value)} className="glass-input pr-10" />
+                        </div>
                         {memberSearch && (
                             <div className="glass-card p-2 space-y-1 max-h-32 overflow-y-auto">
-                                {filteredMembers.map(member => (
-                                    <button key={member.id} onClick={() => handleAddExistingMember(member)} className="w-full p-2 text-right rounded-lg hover:bg-white/10">
-                                        {member.full_name} - {member.phone}
+                                {filteredMembers.map(m => (
+                                    <button key={m.id} onClick={() => handleAddExistingMember(m)} className="w-full p-2 text-right rounded-lg hover:bg-white/10 text-sm">
+                                        <span className="font-medium">{m.full_name}</span>
+                                        <span className="text-muted-foreground mr-2">({m.phone})</span>
                                     </button>
                                 ))}
-                                {filteredMembers.length === 0 && <p className="text-sm text-muted-foreground p-2">لا يوجد نتائج</p>}
                             </div>
                         )}
-
-                        {/* إضافة عضو جديد */}
                         {showAddMember && (
-                            <div className="glass-card p-4 space-y-3">
-                                <div className="grid grid-cols-2 gap-3">
-                                    <Input placeholder="الاسم *" value={newMemberName} onChange={(e) => setNewMemberName(e.target.value)} className="glass-input" />
-                                    <Input placeholder="رقم الهاتف *" value={newMemberPhone} onChange={(e) => setNewMemberPhone(e.target.value)} className="glass-input" dir="ltr" />
+                            <div className="glass-card p-3 space-y-2">
+                                <div className="flex gap-2">
+                                    <Input placeholder="الاسم" value={newMemberName} onChange={(e) => setNewMemberName(e.target.value)} className="glass-input flex-1" />
+                                    <Input placeholder="الهاتف" value={newMemberPhone} onChange={(e) => setNewMemberPhone(e.target.value)} className="glass-input w-32" dir="ltr" />
                                 </div>
                                 <div className="flex gap-2">
-                                    <Button size="sm" variant={newMemberGender === 'male' ? 'default' : 'ghost'} className={newMemberGender === 'male' ? 'gradient-button' : 'glass-button'} onClick={() => setNewMemberGender('male')}>ذكر</Button>
-                                    <Button size="sm" variant={newMemberGender === 'female' ? 'default' : 'ghost'} className={newMemberGender === 'female' ? 'gradient-button' : 'glass-button'} onClick={() => setNewMemberGender('female')}>أنثى</Button>
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button size="sm" className="gradient-button" onClick={handleAddNewMember}>إضافة</Button>
-                                    <Button size="sm" variant="ghost" className="glass-button" onClick={() => setShowAddMember(false)}>إلغاء</Button>
+                                    <Button size="sm" variant="ghost" className={cn('glass-button flex-1', newMemberGender === 'male' && 'bg-[#F18A21]/20')} onClick={() => setNewMemberGender('male')}>ذكر</Button>
+                                    <Button size="sm" variant="ghost" className={cn('glass-button flex-1', newMemberGender === 'female' && 'bg-[#F18A21]/20')} onClick={() => setNewMemberGender('female')}>أنثى</Button>
+                                    <Button size="sm" className="gradient-button" onClick={handleAddNewMemberToSession}>إضافة</Button>
                                 </div>
                             </div>
                         )}
-
-                        {/* الأعضاء المختارين مع الطلبات */}
-                        <div className="space-y-3">
-                            {sessionMembers.map(member => (
-                                <div key={member.id} className="glass-card p-4">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-2">
-                                            <Avatar className="h-8 w-8"><AvatarFallback className="bg-gradient-to-br from-[#E63E32] to-[#F8C033] text-white text-xs">{member.name.charAt(0)}</AvatarFallback></Avatar>
-                                            <span className="font-medium">{member.name}</span>
+                        {/* قائمة الأعضاء المضافين */}
+                        {sessionMembers.length > 0 && (
+                            <div className="space-y-2">
+                                {sessionMembers.map(m => (
+                                    <div key={m.id} className="glass-card p-3 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-medium">{m.name}</span>
+                                            <Button size="sm" variant="ghost" className="text-red-400 h-6 w-6 p-0" onClick={() => handleRemoveSessionMember(m.id)}><X className="h-4 w-4" /></Button>
                                         </div>
-                                        <Button size="icon" variant="ghost" className="h-6 w-6 text-red-400" onClick={() => handleRemoveMember(member.id)}><X className="h-4 w-4" /></Button>
+                                        <div className="flex flex-wrap gap-1">
+                                            {mockProducts.map(p => {
+                                                const order = m.orders.find(o => o.productId === p.id);
+                                                return (
+                                                    <div key={p.id} className="flex items-center gap-1 glass-card px-2 py-1 text-xs">
+                                                        <span>{p.name}</span>
+                                                        <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={() => handleAdjustProduct(m.id, p.id, -1)}><Minus className="h-3 w-3" /></Button>
+                                                        <span className="w-4 text-center">{order?.quantity || 0}</span>
+                                                        <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={() => handleAdjustProduct(m.id, p.id, 1)}><Plus className="h-3 w-3" /></Button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {mockProducts.map(product => {
-                                            const order = member.orders.find(o => o.productId === product.id);
-                                            return (
-                                                <div key={product.id} className={cn('flex items-center gap-1 glass-card p-1 rounded-lg', order && 'bg-[#F18A21]/20')}>
-                                                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleAdjustProduct(member.id, product.id, -1)} disabled={!order}><Minus className="h-3 w-3" /></Button>
-                                                    <span className="text-xs px-1">{product.name}{order && ` (${order.quantity})`}</span>
-                                                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleAdjustProduct(member.id, product.id, 1)}><Plus className="h-3 w-3" /></Button>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <DialogFooter className="gap-2 mt-4">
@@ -864,7 +872,7 @@ export default function AdminDashboardPage() {
                         <p className="text-sm font-medium">الطاولات المتاحة:</p>
                         <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto">
                             {availableTables
-                                .filter(t => !(switchTableModal?.tableIds || []).includes(t.id))
+                                .filter(t => !(switchTableModal?.tableId === t.id))
                                 .map(table => (
                                     <button
                                         key={table.id}
@@ -878,7 +886,7 @@ export default function AdminDashboardPage() {
                                     </button>
                                 ))}
                         </div>
-                        {availableTables.filter(t => !(switchTableModal?.tableIds || []).includes(t.id)).length === 0 && (
+                        {availableTables.filter(t => switchTableModal?.tableId !== t.id).length === 0 && (
                             <p className="text-sm text-muted-foreground text-center p-4">لا توجد طاولات متاحة</p>
                         )}
                     </div>
