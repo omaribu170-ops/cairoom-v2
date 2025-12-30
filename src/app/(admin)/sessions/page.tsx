@@ -54,6 +54,8 @@ interface SessionMember {
 
 interface ActiveSession {
     id: string;
+    type: 'table' | 'hall'; // نوع الجلسة
+    hallName?: string; // اسم القاعة (لو نوعها hall)
     tableId: string;
     tableName: string;
     pricePerHour: number;
@@ -88,7 +90,7 @@ const mockAllMembers = [
 // بيانات تجريبية للجلسات النشطة
 const initialActiveSessions: ActiveSession[] = [
     {
-        id: 'session-1', tableId: '2', tableName: 'طاولة ٢', pricePerHour: 25,
+        id: 'session-1', type: 'table', tableId: '2', tableName: 'طاولة ٢', pricePerHour: 25,
         startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
         members: [
             { id: 'm1', name: 'أحمد محمد', phone: '01012345678', joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), leftAt: null, orders: [{ product: 'قهوة تركي', quantity: 2, price: 25 }] },
@@ -97,13 +99,21 @@ const initialActiveSessions: ActiveSession[] = [
         tableHistory: [{ tableId: '2', tableName: 'طاولة ٢', pricePerHour: 25, startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() }]
     },
     {
-        id: 'session-2', tableId: '4', tableName: 'غرفة الاجتماعات', pricePerHour: 30,
+        id: 'session-2', type: 'hall', hallName: 'قاعة VIP', tableId: 'h2', tableName: 'غرفة VIP ١ + غرفة VIP ٢', pricePerHour: 350,
         startTime: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
         members: [
             { id: 'm3', name: 'محمد علي', phone: '01234567890', joinedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(), leftAt: null, orders: [{ product: 'ساندويتش', quantity: 2, price: 40 }] },
             { id: 'm4', name: 'عمر حسن', phone: '01098765432', joinedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), leftAt: null, orders: [] },
         ],
-        tableHistory: [{ tableId: '4', tableName: 'غرفة الاجتماعات', pricePerHour: 30, startTime: new Date(Date.now() - 45 * 60 * 1000).toISOString() }]
+        tableHistory: [{ tableId: 'h2', tableName: 'قاعة VIP', pricePerHour: 350, startTime: new Date(Date.now() - 45 * 60 * 1000).toISOString() }]
+    },
+    {
+        id: 'session-3', type: 'table', tableId: '5', tableName: 'طاولة ٥', pricePerHour: 25,
+        startTime: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+        members: [
+            { id: 'm5', name: 'ياسمين خالد', phone: '01156789012', joinedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), leftAt: null, orders: [] },
+        ],
+        tableHistory: [{ tableId: '5', tableName: 'طاولة ٥', pricePerHour: 25, startTime: new Date(Date.now() - 30 * 60 * 1000).toISOString() }]
     },
 ];
 
@@ -193,8 +203,18 @@ export default function SessionsPage() {
     // تبويبات سجل الجلسات
     const [historySubTab, setHistorySubTab] = useState<'all' | 'tables' | 'halls'>('all');
 
+    // تبويبات الجلسات النشطة
+    const [activeSubTab, setActiveSubTab] = useState<'all' | 'tables' | 'halls'>('all');
+
     const filteredMembers = mockAllMembers.filter(m =>
         m.full_name.toLowerCase().includes(memberSearch.toLowerCase()) || m.phone.includes(memberSearch)
+    );
+
+    // تصفية الجلسات النشطة حسب النوع
+    const filteredActiveSessions = activeSessions.filter(s =>
+        activeSubTab === 'all' ||
+        (activeSubTab === 'tables' && s.type === 'table') ||
+        (activeSubTab === 'halls' && s.type === 'hall')
     );
 
     const filteredHistory = historySessions.filter(s => {
@@ -333,18 +353,39 @@ export default function SessionsPage() {
 
                 {/* الجلسات النشطة */}
                 <TabsContent value="active" className="space-y-4 mt-6">
-                    {activeSessions.length === 0 ? (
+                    {/* التبويبات الفرعية */}
+                    <div className="flex gap-2 flex-wrap">
+                        <Button size="sm" variant="ghost" className={cn('glass-button', activeSubTab === 'all' && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                            onClick={() => setActiveSubTab('all')}>
+                            الكل ({activeSessions.length})
+                        </Button>
+                        <Button size="sm" variant="ghost" className={cn('glass-button', activeSubTab === 'tables' && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                            onClick={() => setActiveSubTab('tables')}>
+                            الطاولات ({activeSessions.filter(s => s.type === 'table').length})
+                        </Button>
+                        <Button size="sm" variant="ghost" className={cn('glass-button', activeSubTab === 'halls' && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                            onClick={() => setActiveSubTab('halls')}>
+                            القاعات ({activeSessions.filter(s => s.type === 'hall').length})
+                        </Button>
+                    </div>
+
+                    {filteredActiveSessions.length === 0 ? (
                         <Card className="glass-card p-12 text-center"><Play className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><p className="text-muted-foreground">لا توجد جلسات نشطة</p></Card>
                     ) : (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            {activeSessions.map((session) => {
+                            {filteredActiveSessions.map((session) => {
                                 const totals = getSessionTotal(session);
                                 return (
                                     <Card key={session.id} className="glass-card overflow-hidden">
                                         <CardHeader className="border-b border-white/10 pb-4">
                                             <div className="flex items-center justify-between">
                                                 <div>
-                                                    <CardTitle className="text-lg">{session.tableName}</CardTitle>
+                                                    <div className="flex items-center gap-2">
+                                                        <CardTitle className="text-lg">{session.tableName}</CardTitle>
+                                                        <Badge variant="outline" className={cn('text-xs', session.type === 'hall' ? 'border-[#F18A21] text-[#F18A21]' : 'border-emerald-500 text-emerald-400')}>
+                                                            {session.type === 'hall' ? (session.hallName || 'قاعة') : 'طاولة'}
+                                                        </Badge>
+                                                    </div>
                                                     <p className="text-sm text-muted-foreground mt-1">{session.members.filter(m => !m.leftAt).length} أعضاء نشطين</p>
                                                     {session.tableHistory.length > 1 && (
                                                         <p className="text-xs text-muted-foreground mt-1">
