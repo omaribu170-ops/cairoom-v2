@@ -85,6 +85,7 @@ interface ActiveSession {
     startTime: string;
     members: SessionMember[];
     tableHistory: TableHistoryEntry[];
+    hallTableIds?: string[]; // IDs of tables used in this hall session
 }
 
 interface HistorySession {
@@ -261,9 +262,17 @@ export default function SessionsPage() {
     const [activeSubTab, setActiveSubTab] = useState<'all' | 'tables' | 'halls'>('all');
 
     // الطاولات المتاحة
-    const availableTables = mockTables.filter(t => t.status === 'available');
-    const hallTables = selectedHall ? mockTables.filter(t => t.hallId === selectedHall && t.status === 'available') : [];
     const allAvailableTables = mockTables.filter(t => t.status === 'available');
+
+    // الطاولات المتاحة فعلياً (تستثني الطاولات المشغولة في جلسات القاعات)
+    const availableTables = mockTables.filter(t => {
+        if (t.status !== 'available') return false;
+        // هل الطاولة مستخدمة في أي جلسة قاعة نشطة؟
+        const isBusyInHall = activeSessions.some(s => s.type === 'hall' && s.hallTableIds?.includes(t.id));
+        return !isBusyInHall;
+    });
+
+    const hallTables = selectedHall ? mockTables.filter(t => t.hallId === selectedHall && t.status === 'available' && !activeSessions.some(s => s.type === 'hall' && s.hallTableIds?.includes(t.id))) : [];
 
     const filteredMembers = mockAllMembers.filter(m =>
         m.full_name.toLowerCase().includes(memberSearch.toLowerCase()) || m.phone.includes(memberSearch)
@@ -410,9 +419,17 @@ export default function SessionsPage() {
         setMemberSearch('');
     };
 
+
     // إضافة عضو جديد
     const handleAddNewMember = () => {
         if (!addMemberModal || !newMemberName.trim() || !newMemberPhone.trim()) return;
+
+        // التحقق من تكرار رقم الهاتف
+        if (mockAllMembers.some(m => m.phone === newMemberPhone)) {
+            toast.error('رقم الهاتف موجود بالفعل لمستخدم آخر');
+            return;
+        }
+
         const newMember: SessionMember = {
             id: `new-${Date.now()}`, name: newMemberName, phone: newMemberPhone,
             joinedAt: new Date().toISOString(), leftAt: null, orders: []
@@ -520,6 +537,13 @@ export default function SessionsPage() {
     // إضافة عضو جديد
     const handleAddNewMemberToSession = () => {
         if (!newMemberName.trim() || !newMemberPhone.trim()) return;
+
+        // التحقق من تكرار رقم الهاتف
+        if (mockAllMembers.some(m => m.phone === newMemberPhone)) {
+            toast.error('رقم الهاتف موجود بالفعل لمستخدم آخر');
+            return;
+        }
+
         const newId = `new-${Date.now()}`;
         setSessionMembers([...sessionMembers, { id: newId, name: newMemberName, orders: [] }]);
         toast.success(`تم إضافة ${newMemberName} للقاعدة والجلسة`);
@@ -590,6 +614,7 @@ export default function SessionsPage() {
                 pricePerHour,
                 startTime: now,
             }],
+            hallTableIds: sessionType === 'hall' ? selectedHallTables : undefined,
         };
 
         setActiveSessions([...activeSessions, newSession]);

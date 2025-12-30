@@ -70,20 +70,29 @@ const mockProducts = [
 interface SessionMember {
     id: string;
     name: string;
-    orders: { productId: string; productName: string; quantity: number; price: number }[];
+    phone?: string;
+    joinedAt?: string;
+    leftAt?: string | null;
+    billDetails?: {
+        duration: number;
+        timeCost: number;
+        ordersCost: number;
+        total: number;
+    };
+    orders: { productId: string; name: string; quantity: number; price: number }[];
 }
 
 interface ActiveSession {
     id: string;
     type: 'table' | 'hall';
-    tableIds: string[];
-    tableName: string;
+    hallName?: string; // اسم القاعة (لو نوعها hall)
     hallId?: string;
-    hallName?: string;
+    tableId?: string;
+    tableIds?: string[]; // For backward compatibility if needed, or stick to one style
+    tableName: string;
     pricePerHour: number;
     startTime: string;
     members: SessionMember[];
-    // سجل الطاولات (الأصلية + المنقول إليها)
     tableHistory: { tableId: string; tableName: string; pricePerHour: number; startTime: string; endTime?: string }[];
 }
 
@@ -92,8 +101,8 @@ const initialActiveSessions: ActiveSession[] = [
         id: 's1', type: 'table', tableIds: ['2'], tableName: 'طاولة ٢', pricePerHour: 25,
         startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
         members: [
-            { id: 'm1', name: 'أحمد محمد', orders: [{ productId: 'p1', productName: 'قهوة تركي', quantity: 2, price: 25 }] },
-            { id: 'm2', name: 'سارة أحمد', orders: [{ productId: 'p3', productName: 'عصير برتقال', quantity: 1, price: 30 }] },
+            { id: 'm1', name: 'أحمد محمد', orders: [{ productId: 'p1', name: 'قهوة تركي', quantity: 2, price: 25 }] },
+            { id: 'm2', name: 'سارة أحمد', orders: [{ productId: 'p3', name: 'عصير برتقال', quantity: 1, price: 30 }] },
         ],
         tableHistory: [{ tableId: '2', tableName: 'طاولة ٢', pricePerHour: 25, startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() }]
     },
@@ -101,7 +110,7 @@ const initialActiveSessions: ActiveSession[] = [
         id: 's2', type: 'hall', tableIds: ['4', '5'], tableName: 'غرفة VIP ١ + غرفة VIP ٢', hallId: 'h2', hallName: 'قاعة VIP', pricePerHour: 350,
         startTime: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
         members: [
-            { id: 'm3', name: 'محمد علي', orders: [{ productId: 'p4', productName: 'ساندويتش جبنة', quantity: 2, price: 40 }] },
+            { id: 'm3', name: 'محمد علي', orders: [{ productId: 'p4', name: 'ساندويتش جبنة', quantity: 2, price: 40 }] },
             { id: 'm4', name: 'عمر حسن', orders: [] },
         ],
         tableHistory: [{ tableId: 'h2', tableName: 'قاعة VIP', pricePerHour: 350, startTime: new Date(Date.now() - 45 * 60 * 1000).toISOString() }]
@@ -143,6 +152,7 @@ export default function AdminDashboardPage() {
     // End Session Modal
     const [endSessionModal, setEndSessionModal] = useState<ActiveSession | null>(null);
     const [paymentMethod, setPaymentMethod] = useState('cash');
+    const [addOrderModal, setAddOrderModal] = useState<{ session: ActiveSession; member: SessionMember } | null>(null);
 
     // Switch Table Modal
     const [switchTableModal, setSwitchTableModal] = useState<ActiveSession | null>(null);
@@ -217,7 +227,7 @@ export default function AdminDashboardPage() {
                 }
                 return { ...m, orders: m.orders.map(o => o.productId === productId ? { ...o, quantity: newQty } : o) };
             } else if (delta > 0) {
-                return { ...m, orders: [...m.orders, { productId, productName: product.name, quantity: 1, price: product.price }] };
+                return { ...m, orders: [...m.orders, { productId, name: product.name, quantity: 1, price: product.price }] };
             }
             return m;
         }));
@@ -228,6 +238,41 @@ export default function AdminDashboardPage() {
         setSelectedHallTables(prev =>
             prev.includes(tableId) ? prev.filter(id => id !== tableId) : [...prev, tableId]
         );
+    };
+
+    // إدارة طلبات الأعضاء في الجلسة النشطة
+    const handleUpdateMemberOrder = (memberId: string, productId: string, delta: number) => {
+        if (!addOrderModal) return;
+        const product = mockProducts.find(p => p.id === productId);
+        if (!product) return;
+
+        setActiveSessions(prev => prev.map(s => {
+            if (s.id !== addOrderModal.session.id) return s;
+            return {
+                ...s,
+                members: s.members.map(m => {
+                    if (m.id !== memberId) return m;
+                    const existingOrder = m.orders.find(o => o.productId === productId);
+
+                    if (existingOrder) {
+                        const newQty = existingOrder.quantity + delta;
+                        if (newQty <= 0) return { ...m, orders: m.orders.filter(o => o.productId !== productId) };
+                        return { ...m, orders: m.orders.map(o => o.productId === productId ? { ...o, quantity: newQty } : o) };
+                    } else if (delta > 0) {
+                        return { ...m, orders: [...m.orders, { productId, name: product.name, quantity: 1, price: product.price }] };
+                    }
+                    return m;
+                })
+            };
+        }));
+
+        // تحديث المودال أيضاً ليعكس التغييرات فوراً
+        setAddOrderModal(prev => {
+            if (!prev) return null;
+            const updatedSession = activeSessions.find(s => s.id === prev.session.id);
+            const updatedMember = updatedSession?.members.find(m => m.id === prev.member.id);
+            return updatedMember ? { ...prev, member: updatedMember } : prev;
+        });
     };
 
     // بدء الجلسة
@@ -490,8 +535,17 @@ export default function AdminDashboardPage() {
                                                     {session.hallName && <Badge variant="outline" className="text-xs">{session.hallName}</Badge>}
                                                 </div>
                                                 <div className="flex flex-wrap gap-1 mt-2">
-                                                    {session.members.map(m => (
-                                                        <Badge key={m.id} variant="outline" className="text-xs">{m.name}</Badge>
+                                                    {/* عرض الأعضاء مع زر إضافة طلب */}
+                                                    {session.members.filter(m => !m.leftAt).map(member => (
+                                                        <div key={member.id} className="flex items-center gap-2 bg-white/5 rounded-full pl-1 pr-3 py-1 text-xs group">
+                                                            <span>{member.name}</span>
+                                                            <button
+                                                                className="h-5 w-5 flex items-center justify-center rounded-full bg-white/10 hover:bg-[#F18A21] hover:text-white transition-colors"
+                                                                onClick={() => setAddOrderModal({ session, member })}
+                                                            >
+                                                                <ShoppingBag className="h-3 w-3" />
+                                                            </button>
+                                                        </div>
                                                     ))}
                                                 </div>
                                             </div>
@@ -512,12 +566,20 @@ export default function AdminDashboardPage() {
                                         </div>
                                         {/* عرض الطلبات لكل عضو */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
-                                            {session.members.filter(m => m.orders.length > 0).map(m => (
-                                                <div key={m.id} className="bg-white/5 rounded-lg p-2 text-xs">
-                                                    <span className="font-medium">{m.name}:</span>
-                                                    <span className="text-muted-foreground mr-2">
-                                                        {m.orders.map(o => `${o.productName}×${o.quantity}`).join('، ')}
-                                                    </span>
+                                            {session.members.map(member => (
+                                                <div key={member.id}>
+                                                    {member.orders.length > 0 && (
+                                                        <div className="bg-white/5 rounded-lg p-2 text-xs">
+                                                            <span className="font-medium text-[#F18A21]">{member.name}:</span>
+                                                            <div className="flex flex-wrap gap-2 mt-1">
+                                                                {member.orders.map((o, idx) => (
+                                                                    <Badge key={idx} variant="secondary" className="text-[10px] h-5 bg-white/10 hover:bg-white/20">
+                                                                        {o.name} <span className="mx-1 text-muted-foreground">×{o.quantity}</span>
+                                                                    </Badge>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
@@ -802,7 +864,7 @@ export default function AdminDashboardPage() {
                         <p className="text-sm font-medium">الطاولات المتاحة:</p>
                         <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto">
                             {availableTables
-                                .filter(t => !switchTableModal?.tableIds.includes(t.id))
+                                .filter(t => !(switchTableModal?.tableIds || []).includes(t.id))
                                 .map(table => (
                                     <button
                                         key={table.id}
@@ -816,7 +878,7 @@ export default function AdminDashboardPage() {
                                     </button>
                                 ))}
                         </div>
-                        {availableTables.filter(t => !switchTableModal?.tableIds.includes(t.id)).length === 0 && (
+                        {availableTables.filter(t => !(switchTableModal?.tableIds || []).includes(t.id)).length === 0 && (
                             <p className="text-sm text-muted-foreground text-center p-4">لا توجد طاولات متاحة</p>
                         )}
                     </div>
