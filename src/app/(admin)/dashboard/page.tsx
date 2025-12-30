@@ -24,6 +24,17 @@ import {
 } from 'lucide-react';
 import { SessionTimer } from '@/components/admin/SessionTimer';
 import { toast } from 'sonner';
+import { getHallsWithTables } from '@/actions/halls';
+import { getProducts } from '@/actions/products';
+import { getActiveSessions, createSession, endSession, addSessionOrder } from '@/actions/sessions';
+import { searchMembers, createMember } from '@/actions/members';
+import { ActiveSessionsList } from '@/components/admin/ActiveSessionsList';
+import { Hall, Table, Product, User, ActiveSession, SessionMember } from '@/types/database';
+import { calculateDuration, getSessionTotal } from '@/lib/sessionUtils';
+
+// Helper to map DB session to UI ActiveSession
+// (This will be implemented inside the component or outside)
+
 
 // أنواع الفترات الزمنية
 type TimePeriod = 'day' | 'week' | 'month' | 'halfyear' | 'year' | 'custom';
@@ -32,89 +43,12 @@ const periodLabels: Record<TimePeriod, string> = {
     day: 'يومي', week: 'أسبوعي', month: 'شهري', halfyear: 'نصف سنوي', year: 'سنوي', custom: 'تاريخ محدد'
 };
 
-// بيانات تجريبية للقاعات
-const mockHalls = [
-    { id: 'h1', name: 'القاعة الرئيسية', capacity_min: 10, capacity_max: 50, price_per_hour: 200 },
-    { id: 'h2', name: 'قاعة VIP', capacity_min: 5, capacity_max: 20, price_per_hour: 350 },
-    { id: 'h3', name: 'قاعة الحديقة', capacity_min: 20, capacity_max: 100, price_per_hour: 500 },
-];
-
-// بيانات تجريبية للطاولات
-const mockTables = [
-    { id: '1', name: 'طاولة ١', hallId: 'h1', capacity_min: 2, capacity_max: 4, price_per_hour_per_person: 25, status: 'available' },
-    { id: '2', name: 'طاولة ٢', hallId: 'h1', capacity_min: 2, capacity_max: 6, price_per_hour_per_person: 25, status: 'busy' },
-    { id: '3', name: 'طاولة ٣', hallId: 'h1', capacity_min: 4, capacity_max: 8, price_per_hour_per_person: 20, status: 'available' },
-    { id: '4', name: 'غرفة VIP ١', hallId: 'h2', capacity_min: 6, capacity_max: 12, price_per_hour_per_person: 50, status: 'available' },
-    { id: '5', name: 'غرفة VIP ٢', hallId: 'h2', capacity_min: 4, capacity_max: 8, price_per_hour_per_person: 50, status: 'available' },
-    { id: '6', name: 'طاولة الحديقة', hallId: 'h3', capacity_min: 4, capacity_max: 10, price_per_hour_per_person: 30, status: 'available' },
-];
-
-// بيانات تجريبية للأعضاء
-const mockMembers = [
-    { id: 'm1', full_name: 'أحمد محمد', phone: '01012345678', gender: 'male' },
-    { id: 'm2', full_name: 'سارة أحمد', phone: '01123456789', gender: 'female' },
-    { id: 'm3', full_name: 'محمد علي', phone: '01234567890', gender: 'male' },
-    { id: 'm4', full_name: 'عمر حسن', phone: '01098765432', gender: 'male' },
-];
-
-// بيانات تجريبية للمنتجات
-const mockProducts = [
-    { id: 'p1', name: 'قهوة تركي', price: 25, type: 'drinks' },
-    { id: 'p2', name: 'شاي', price: 15, type: 'drinks' },
-    { id: 'p3', name: 'عصير برتقال', price: 30, type: 'drinks' },
-    { id: 'p4', name: 'ساندويتش جبنة', price: 40, type: 'food' },
-    { id: 'p5', name: 'كرواسون', price: 25, type: 'food' },
-];
-
-// بيانات تجريبية للجلسات النشطة
-interface SessionMember {
-    id: string;
-    name: string;
-    phone?: string;
-    joinedAt?: string;
-    leftAt: string | null;
-    billDetails?: {
-        duration: number;
-        timeCost: number;
-        ordersCost: number;
-        total: number;
-    };
-    orders: { productId: string; name: string; quantity: number; price: number }[];
+// State Types
+interface DashboardData {
+    halls: Hall[];
+    tables: Table[];
+    products: Product[];
 }
-
-interface ActiveSession {
-    id: string;
-    type: 'table' | 'hall';
-    hallName?: string;
-    tableId: string;
-    tableName: string;
-    pricePerHour: number;
-    startTime: string;
-    members: SessionMember[];
-    tableHistory: { tableId: string; tableName: string; pricePerHour: number; startTime: string; endTime?: string }[];
-    hallTableIds?: string[];
-}
-
-const initialActiveSessions: ActiveSession[] = [
-    {
-        id: 's1', type: 'table', tableId: '2', tableName: 'طاولة ٢', pricePerHour: 25,
-        startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        members: [
-            { id: 'm1', name: 'أحمد محمد', joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), leftAt: null, orders: [{ productId: 'p1', name: 'قهوة تركي', quantity: 2, price: 25 }] },
-            { id: 'm2', name: 'سارة أحمد', joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), leftAt: null, orders: [{ productId: 'p3', name: 'عصير برتقال', quantity: 1, price: 30 }] },
-        ],
-        tableHistory: [{ tableId: '2', tableName: 'طاولة ٢', pricePerHour: 25, startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() }]
-    },
-    {
-        id: 's2', type: 'hall', tableId: 'h2', tableName: 'غرفة VIP ١ + غرفة VIP ٢', hallName: 'قاعة VIP', pricePerHour: 350,
-        startTime: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-        members: [
-            { id: 'm3', name: 'محمد علي', joinedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(), leftAt: null, orders: [{ productId: 'p4', name: 'ساندويتش جبنة', quantity: 2, price: 40 }] },
-            { id: 'm4', name: 'عمر حسن', joinedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), leftAt: null, orders: [] },
-        ],
-        tableHistory: [{ tableId: 'h2', tableName: 'قاعة VIP', pricePerHour: 350, startTime: new Date(Date.now() - 45 * 60 * 1000).toISOString() }]
-    },
-];
 
 // إحصائيات حسب الفترة
 const getStatsByPeriod = (period: TimePeriod) => {
@@ -132,7 +66,80 @@ const getStatsByPeriod = (period: TimePeriod) => {
 export default function AdminDashboardPage() {
     const [timePeriod, setTimePeriod] = useState<TimePeriod>('day');
     const [customDate, setCustomDate] = useState('');
-    const [activeSessions, setActiveSessions] = useState<ActiveSession[]>(initialActiveSessions);
+
+    // Live Data State
+    const [halls, setHalls] = useState<Hall[]>([]);
+    const [tables, setTables] = useState<Table[]>([]);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    // Filter Logic for Member Search in Start Session Modal (Local search on mockMembers in original, needs to be updated or removed if we use searchResults)
+    // The original code used `mockMembers`. We should rely on `searchResults` which is populated by `handleMemberSearch`.
+    // We already have `filteredMembers` in the JSX but it wasn't defined in the snippet I read fully (it likely filtered mockMembers).
+    // I will simply use `searchResults` directly in the Start Session modal.
+
+    // Initial Data Fetch
+    const refreshData = async () => {
+        try {
+            const [hallsData, productsData, sessionsData] = await Promise.all([
+                getHallsWithTables(),
+                getProducts(),
+                getActiveSessions()
+            ]);
+
+            setHalls(hallsData.halls);
+            setTables(hallsData.tables);
+            setProducts(productsData);
+
+            // Map DB Sessions to UI ActiveSession
+            const mappedSessions: ActiveSession[] = sessionsData.map((s: any) => ({
+                id: s.id,
+                type: s.hall_id ? 'hall' : 'table',
+                hallName: s.hall?.name,
+                tableId: s.type === 'hall' ? s.hall_id : s.table_id, // For UI grouping
+                tableName: s.table?.name || s.hall?.name || (s.table_ids?.length ? `${s.table_ids.length} طاولات` : 'غير معروف'),
+                pricePerHour: s.hall ? s.hall.price_per_hour : (s.table?.price_per_hour_per_person || 0),
+                priceFirstHour: s.hall ? s.hall.price_first_hour : (s.table?.price_first_hour_per_person || null),
+                startTime: s.start_time,
+                members: s.attendees.map((a: any) => ({
+                    id: a.user_id || 'guest',
+                    name: a.name,
+                    phone: '', // Need phone in attendee or fetch it? Schema for attendee has phone optional.
+                    joinedAt: a.joined_at || s.start_time,
+                    leftAt: a.left_at,
+                    orders: []
+                })),
+                tableHistory: [], // Not supported in simple schema yet
+                hallTableIds: s.table_ids
+            }));
+
+            // Distribute orders (temporary hack)
+            sessionsData.forEach((s: any, idx: number) => {
+                const session = mappedSessions[idx];
+                if (session.members.length > 0 && s.orders) {
+                    session.members[0].orders = s.orders.map((o: any) => ({
+                        productId: o.product_id,
+                        name: o.product?.name || 'Unknown',
+                        quantity: o.quantity,
+                        price: o.price_at_time
+                    }));
+                }
+            });
+
+            setActiveSessions(mappedSessions);
+        } catch (error) {
+            console.error(error);
+            toast.error('فشل تحميل البيانات');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useMemo(() => {
+        refreshData();
+    }, []);
+
 
     // Start Session Modal State
     const [startSessionOpen, setStartSessionOpen] = useState(false);
@@ -148,49 +155,55 @@ export default function AdminDashboardPage() {
     const [newMemberPhone, setNewMemberPhone] = useState('');
     const [newMemberGender, setNewMemberGender] = useState<'male' | 'female'>('male');
 
-    // End Session Modal
-    const [endSessionModal, setEndSessionModal] = useState<ActiveSession | null>(null);
-    const [paymentMethod, setPaymentMethod] = useState('cash');
-    const [addOrderModal, setAddOrderModal] = useState<{ session: ActiveSession; member: SessionMember } | null>(null);
-
-    // Switch Table Modal
-    const [switchTableModal, setSwitchTableModal] = useState<ActiveSession | null>(null);
-
+    // Stats
     const stats = useMemo(() => getStatsByPeriod(timePeriod), [timePeriod]);
 
     // الطاولات المتاحة فعلياً (تستثني الطاولات المشغولة في جلسات القاعات)
-    const availableTables = mockTables.filter(t => {
+    const availableTables = tables.filter(t => {
         if (t.status !== 'available') return false;
         // هل الطاولة مستخدمة في أي جلسة قاعة نشطة؟
         const isBusyInHall = activeSessions.some(s => s.type === 'hall' && s.hallTableIds?.includes(t.id));
         return !isBusyInHall;
     });
 
-    const hallTables = selectedHall ? mockTables.filter(t => t.hallId === selectedHall && t.status === 'available' && !activeSessions.some(s => s.type === 'hall' && s.hallTableIds?.includes(t.id))) : [];
-    const allAvailableTables = mockTables.filter(t => t.status === 'available');
-    const filteredMembers = mockMembers.filter(m =>
-        m.full_name.toLowerCase().includes(memberSearch.toLowerCase()) || m.phone.includes(memberSearch)
-    );
+    const hallTables = selectedHall ? tables.filter(t => t.hall_id === selectedHall && t.status === 'available' && !activeSessions.some(s => s.type === 'hall' && s.hallTableIds?.includes(t.id))) : [];
+    const allAvailableTables = tables.filter(t => t.status === 'available');
+
+    // Member Search (Live)
+    const [searchResults, setSearchResults] = useState<User[]>([]);
+
+    const handleMemberSearch = async (val: string) => {
+        setMemberSearch(val);
+        if (val.length > 2) {
+            const res = await searchMembers(val);
+            setSearchResults(res);
+        } else {
+            setSearchResults([]);
+        }
+    };
+
 
     // التحقق إذا العضو موجود في جلسة نشطة
     const isMemberInActiveSession = (memberId: string) => {
         return activeSessions.some(session =>
-            session.members.some(m => m.id === memberId)
+            session.members.some(m => m.id === memberId && !m.leftAt)
         );
     };
 
     // الحصول على اسم الجلسة النشطة للعضو
     const getMemberActiveSessionName = (memberId: string) => {
-        const session = activeSessions.find(s => s.members.some(m => m.id === memberId));
+        const session = activeSessions.find(s => s.members.some(m => m.id === memberId && !m.leftAt));
         return session ? (session.hallName || session.tableName) : null;
     };
 
     // إضافة عضو موجود للجلسة الجديدة
-    const handleAddExistingMember = (member: typeof mockMembers[0]) => {
+    const handleAddExistingMember = (member: User) => {
         if (sessionMembers.find(m => m.id === member.id)) {
             setMemberSearch('');
+            setSearchResults([]);
             return;
         }
+
         if (isMemberInActiveSession(member.id)) {
             const sessionName = getMemberActiveSessionName(member.id);
             toast.error(`${member.full_name} موجود بالفعل في جلسة نشطة (${sessionName})`);
@@ -198,25 +211,31 @@ export default function AdminDashboardPage() {
         }
         setSessionMembers([...sessionMembers, { id: member.id, name: member.full_name, orders: [] }]);
         setMemberSearch('');
+        setSearchResults([]);
     };
 
     // إضافة عضو جديد (للقاعدة والجلسة)
-    const handleAddNewMemberToSession = () => {
+    const handleAddNewMemberToSession = async () => {
         if (!newMemberName.trim() || !newMemberPhone.trim()) return;
 
-        // التحقق من تكرار رقم الهاتف
-        if (mockMembers.some(m => m.phone === newMemberPhone)) {
-            toast.error('رقم الهاتف موجود بالفعل لمستخدم آخر');
-            return;
-        }
+        // التحقق من تكرار رقم الهاتف if we had full list, but server handles it.
 
-        const newId = `new-${Date.now()}`;
-        setSessionMembers([...sessionMembers, { id: newId, name: newMemberName, orders: [] }]);
-        toast.success(`تم إضافة ${newMemberName} للقاعدة والجلسة`);
-        setNewMemberName('');
-        setNewMemberPhone('');
-        setNewMemberGender('male');
-        setShowAddMember(false);
+        try {
+            const newMember = await createMember({
+                name: newMemberName,
+                phone: newMemberPhone,
+                gender: newMemberGender
+            });
+
+            setSessionMembers([...sessionMembers, { id: newMember.id, name: newMember.full_name, orders: [] }]);
+            toast.success(`تم إضافة ${newMemberName} للقاعدة والجلسة`);
+            setNewMemberName('');
+            setNewMemberPhone('');
+            setNewMemberGender('male');
+            setShowAddMember(false);
+        } catch (e: any) {
+            toast.error(e.message);
+        }
     };
 
     // إزالة عضو من الجلسة الجديدة
@@ -224,9 +243,8 @@ export default function AdminDashboardPage() {
         setSessionMembers(sessionMembers.filter(m => m.id !== memberId));
     };
 
-    // إضافة/تقليل منتج لعضو في الجلسة الجديدة
     const handleAdjustProduct = (memberId: string, productId: string, delta: number) => {
-        const product = mockProducts.find(p => p.id === productId);
+        const product = products.find(p => p.id === productId);
         if (!product) return;
         setSessionMembers(sessionMembers.map(m => {
             if (m.id !== memberId) return m;
@@ -242,85 +260,32 @@ export default function AdminDashboardPage() {
         }));
     };
 
+
     // تبديل طاولة في القاعة
     const toggleHallTable = (tableId: string) => {
         setSelectedHallTables(prev => prev.includes(tableId) ? prev.filter(id => id !== tableId) : [...prev, tableId]);
     };
 
-    // إدارة طلبات الأعضاء في الجلسة النشطة
-    const handleUpdateMemberOrder = (memberId: string, productId: string, delta: number) => {
-        if (!addOrderModal) return;
-        const product = mockProducts.find(p => p.id === productId);
-        if (!product) return;
-
-        setActiveSessions(prev => prev.map(s => {
-            if (s.id !== addOrderModal.session.id) return s;
-            return {
-                ...s,
-                members: s.members.map(m => {
-                    if (m.id !== memberId) return m;
-                    const existingOrder = m.orders.find(o => o.productId === productId);
-
-                    if (existingOrder) {
-                        const newQty = existingOrder.quantity + delta;
-                        if (newQty <= 0) return { ...m, orders: m.orders.filter(o => o.productId !== productId) };
-                        return { ...m, orders: m.orders.map(o => o.productId === productId ? { ...o, quantity: newQty } : o) };
-                    } else if (delta > 0) {
-                        return { ...m, orders: [...m.orders, { productId, name: product.name, quantity: 1, price: product.price }] };
-                    }
-                    return m;
-                })
-            };
-        }));
-
-        // تحديث المودال أيضاً ليعكس التغييرات فوراً
-        setAddOrderModal(prev => {
-            if (!prev) return null;
-            const updatedSession = activeSessions.find(s => s.id === prev.session.id);
-            const updatedMember = updatedSession?.members.find(m => m.id === prev.member.id);
-            return updatedMember ? { ...prev, member: updatedMember } : prev;
-        });
-    };
-
     // بدء الجلسة
-    const handleStartSession = () => {
+    const handleStartSession = async () => {
         if (sessionType === 'table' && (!selectedTable || sessionMembers.length === 0)) return;
         if (sessionType === 'hall' && (!selectedHall || selectedHallTables.length === 0 || sessionMembers.length === 0)) return;
 
-        const table = mockTables.find(t => t.id === selectedTable);
-        const hall = mockHalls.find(h => h.id === selectedHall);
-        const tableNames = selectedHallTables.map(id => mockTables.find(t => t.id === id)?.name).join(' + ');
-        const now = new Date().toISOString();
-        const pricePerHour = sessionType === 'table' ? (table?.price_per_hour_per_person || 25) : (hall?.price_per_hour || 200);
+        try {
+            await createSession({
+                type: sessionType,
+                tableId: sessionType === 'table' ? selectedTable : undefined,
+                hallId: sessionType === 'hall' ? selectedHall : undefined,
+                hallTableIds: sessionType === 'hall' ? selectedHallTables : undefined,
+                members: sessionMembers.map(m => ({ id: m.id, name: m.name }))
+            });
 
-        const newSession: ActiveSession = {
-            id: `session-${Date.now()}`,
-            type: sessionType,
-            hallName: sessionType === 'hall' ? hall?.name : undefined,
-            tableId: sessionType === 'table' ? selectedTable : selectedHall,
-            tableName: sessionType === 'table' ? (table?.name || '') : tableNames,
-            pricePerHour,
-            startTime: now,
-            members: sessionMembers.map(m => ({
-                id: m.id,
-                name: m.name,
-                phone: '', // يمكن إضافته إذا كان متاحاً
-                joinedAt: now,
-                leftAt: null,
-                orders: m.orders.map(o => ({ productId: o.productId, name: o.productName, quantity: o.quantity, price: o.price })),
-            })),
-            tableHistory: [{
-                tableId: sessionType === 'table' ? selectedTable : selectedHall,
-                tableName: sessionType === 'table' ? (table?.name || '') : (hall?.name || ''),
-                pricePerHour,
-                startTime: now,
-            }],
-            hallTableIds: sessionType === 'hall' ? selectedHallTables : undefined,
-        };
-
-        setActiveSessions([...activeSessions, newSession]);
-        toast.success('تم بدء الجلسة بنجاح');
-        resetSessionModal();
+            toast.success('تم بدء الجلسة بنجاح');
+            resetSessionModal();
+            refreshData();
+        } catch (e: any) {
+            toast.error(e.message || 'حدث خطأ أثناء بدء الجلسة');
+        }
     };
 
     const resetSessionModal = () => {
@@ -331,69 +296,8 @@ export default function AdminDashboardPage() {
         setHallTableMode('hall');
         setSelectedHallTables([]);
         setSessionMembers([]);
-    };
-
-    // حساب إجمالي الجلسة باستخدام سجل الطاولات
-    const getSessionTotal = (session: ActiveSession) => {
-        let timeCost = 0;
-        const now = Date.now();
-
-        // حساب تكلفة كل طاولة في السجل
-        session.tableHistory.forEach(th => {
-            const start = new Date(th.startTime).getTime();
-            const end = th.endTime ? new Date(th.endTime).getTime() : now;
-            const hours = (end - start) / (1000 * 60 * 60);
-            if (session.type === 'hall') {
-                timeCost += Math.ceil(hours * th.pricePerHour);
-            } else {
-                timeCost += Math.ceil(hours * th.pricePerHour * session.members.length);
-            }
-        });
-
-        const ordersCost = session.members.reduce((sum, m) => sum + m.orders.reduce((s, o) => s + (o.price * o.quantity), 0), 0);
-        return { timeCost, ordersCost, total: timeCost + ordersCost, tableHistory: session.tableHistory };
-    };
-
-    // إنهاء الجلسة
-    const handleEndSession = () => {
-        if (!endSessionModal) return;
-        setActiveSessions(activeSessions.filter(s => s.id !== endSessionModal.id));
-        toast.success('تم إنهاء الجلسة وحفظها في السجل');
-        setEndSessionModal(null);
-    };
-
-    // تبديل الطاولة
-    const handleSwitchTable = (newTableId: string) => {
-        if (!switchTableModal) return;
-        const newTable = mockTables.find(t => t.id === newTableId);
-        if (!newTable) return;
-
-        const now = new Date().toISOString();
-
-        setActiveSessions(activeSessions.map(s => {
-            if (s.id !== switchTableModal.id) return s;
-            // إغلاق الطاولة الحالية
-            const updatedHistory = s.tableHistory.map((th, i) =>
-                i === s.tableHistory.length - 1 ? { ...th, endTime: now } : th
-            );
-            // إضافة الطاولة الجديدة
-            updatedHistory.push({
-                tableId: newTableId,
-                tableName: newTable.name,
-                pricePerHour: newTable.price_per_hour_per_person,
-                startTime: now,
-            });
-            return {
-                ...s,
-                tableId: newTableId,
-                tableName: newTable.name,
-                pricePerHour: newTable.price_per_hour_per_person,
-                tableHistory: updatedHistory,
-            };
-        }));
-
-        toast.success(`تم النقل إلى ${newTable.name}`);
-        setSwitchTableModal(null);
+        setMemberSearch('');
+        setSearchResults([]);
     };
 
     return (
@@ -526,92 +430,18 @@ export default function AdminDashboardPage() {
                 </Card>
             </div>
 
-            {/* الجلسات النشطة - مفصلة مع الطلبات */}
-            <Card className="glass-card">
-                <CardHeader className="border-b border-white/10">
-                    <CardTitle className="flex items-center gap-2">
-                        <Table2 className="h-5 w-5 text-[#F18A21]" />الجلسات النشطة
-                        <Badge className="status-available mr-auto">{activeSessions.length}</Badge>
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                    {activeSessions.length === 0 ? (
-                        <div className="p-12 text-center text-muted-foreground"><Play className="h-12 w-12 mx-auto text-muted-foreground mb-4" />لا توجد جلسات نشطة</div>
-                    ) : (
-                        <div className="divide-y divide-white/5">
-                            {activeSessions.map((session) => {
-                                const totals = getSessionTotal(session);
-                                return (
-                                    <div key={session.id} className="p-4">
-                                        <div className="flex items-start justify-between mb-3">
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <h4 className="font-medium text-lg">{session.tableName}</h4>
-                                                    <Badge variant="outline" className={cn('text-xs', session.type === 'hall' ? 'border-[#F18A21] text-[#F18A21]' : 'border-emerald-500 text-emerald-400')}>
-                                                        {session.type === 'hall' ? (session.hallName || 'قاعة') : 'طاولة'}
-                                                    </Badge>
-                                                </div>
-                                                <div className="flex flex-wrap gap-1 mt-2">
-                                                    {/* عرض الأعضاء مع زر إضافة طلب */}
-                                                    {session.members.filter(m => !m.leftAt).map(member => (
-                                                        <div key={member.id} className="flex items-center gap-2 bg-white/5 rounded-full pl-1 pr-3 py-1 text-xs group hover:bg-white/10 transition-colors">
-                                                            <Avatar className="h-5 w-5"><AvatarFallback className="bg-gradient-to-br from-[#E63E32] to-[#F8C033] text-white text-[8px]">{member.name.charAt(0)}</AvatarFallback></Avatar>
-                                                            <span>{member.name}</span>
-                                                            <button
-                                                                className="h-5 w-5 flex items-center justify-center rounded-full bg-white/10 hover:bg-[#F18A21] hover:text-white transition-colors"
-                                                                onClick={() => setAddOrderModal({ session, member })}
-                                                            >
-                                                                <ShoppingBag className="h-3 w-3" />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                {session.tableHistory.length > 1 && (
-                                                    <p className="text-xs text-muted-foreground mt-2">
-                                                        الطاولات: {session.tableHistory.map(th => th.tableName).join(' → ')}
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <div className="text-left flex items-center gap-3">
-                                                <div>
-                                                    <SessionTimer startTime={session.startTime} className="text-lg font-bold" />
-                                                    <p className="text-xs text-muted-foreground">{formatCurrency(totals.total)}</p>
-                                                </div>
-                                                <Button size="sm" className="gradient-button" onClick={() => setEndSessionModal(session)}>
-                                                    <Square className="h-4 w-4 ml-1" />إنهاء
-                                                </Button>
-                                                {session.type === 'table' && (
-                                                    <Button size="sm" variant="ghost" className="glass-button" onClick={() => setSwitchTableModal(session)}>
-                                                        <ArrowLeftRight className="h-4 w-4 ml-1" />تبديل
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </div>
-                                        {/* عرض الطلبات لكل عضو */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
-                                            {session.members.filter(m => m.orders.length > 0).map(member => (
-                                                <div key={member.id} className="bg-white/5 rounded-lg p-2 text-xs">
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <span className="font-medium text-[#F18A21]">{member.name}:</span>
-                                                        <span className="text-[10px] text-muted-foreground">{formatCurrency(member.orders.reduce((sum, o) => sum + (o.price * o.quantity), 0))}</span>
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {member.orders.map((o, idx) => (
-                                                            <Badge key={idx} variant="secondary" className="text-[10px] h-5 bg-white/10 hover:bg-white/20 font-normal">
-                                                                {o.name} <span className="mx-1 text-muted-foreground opacity-70">x{o.quantity}</span>
-                                                            </Badge>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+            {/* الجلسات النشطة - Replaced by ActiveSessionsList */}
+            <ActiveSessionsList
+                activeSessions={activeSessions}
+                setActiveSessions={setActiveSessions}
+                halls={halls}
+                tables={tables}
+                products={products}
+                refreshData={refreshData}
+                searchResults={searchResults}
+                onMemberSearch={handleMemberSearch}
+                memberSearchValue={memberSearch}
+            />
 
             {/* نافذة بدء جلسة جديدة */}
             <Dialog open={startSessionOpen} onOpenChange={resetSessionModal}>
@@ -646,7 +476,7 @@ export default function AdminDashboardPage() {
                             <div>
                                 <Label>اختر القاعة</Label>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                                    {mockHalls.map(h => (
+                                    {halls.map(h => (
                                         <button key={h.id} onClick={() => { setSelectedHall(h.id); setSelectedHallTables([]); }}
                                             className={cn('glass-card p-3 text-right transition-colors', selectedHall === h.id && 'bg-[#F18A21]/20 border-[#F18A21]')}>
                                             <p className="font-medium">{h.name}</p>
@@ -654,6 +484,7 @@ export default function AdminDashboardPage() {
                                         </button>
                                     ))}
                                 </div>
+
                             </div>
                             {selectedHall && (
                                 <>
@@ -680,8 +511,9 @@ export default function AdminDashboardPage() {
                                         ))}
                                     </div>
                                     {selectedHallTables.length > 0 && (
-                                        <p className="text-xs text-muted-foreground">تم اختيار: {selectedHallTables.map(id => mockTables.find(t => t.id === id)?.name).join(', ')}</p>
+                                        <p className="text-xs text-muted-foreground">تم اختيار: {selectedHallTables.map(id => tables.find(t => t.id === id)?.name).join(', ')}</p>
                                     )}
+
                                 </>
                             )}
                         </TabsContent>
@@ -695,14 +527,17 @@ export default function AdminDashboardPage() {
                         </div>
                         <div className="relative">
                             <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input placeholder="ابحث عن عضو..." value={memberSearch} onChange={(e) => setMemberSearch(e.target.value)} className="glass-input pr-10" />
+                            <Input placeholder="ابحث عن عضو (الاسم أو الهاتف)..." value={memberSearch} onChange={(e) => handleMemberSearch(e.target.value)} className="glass-input pr-10" />
+
                         </div>
-                        {memberSearch && (
+                        {searchResults.length > 0 && (
                             <div className="glass-card p-2 space-y-1 max-h-32 overflow-y-auto">
-                                {filteredMembers.map(m => (
+                                {searchResults.map(m => (
                                     <button key={m.id} onClick={() => handleAddExistingMember(m)} className="w-full p-2 text-right rounded-lg hover:bg-white/10 text-sm">
-                                        <span className="font-medium">{m.full_name}</span>
-                                        <span className="text-muted-foreground mr-2">({m.phone})</span>
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-medium">{m.full_name}</span>
+                                            <span className="text-muted-foreground text-xs">{m.phone}</span>
+                                        </div>
                                     </button>
                                 ))}
                             </div>
@@ -730,7 +565,7 @@ export default function AdminDashboardPage() {
                                             <Button size="sm" variant="ghost" className="text-red-400 h-6 w-6 p-0" onClick={() => handleRemoveSessionMember(m.id)}><X className="h-4 w-4" /></Button>
                                         </div>
                                         <div className="flex flex-wrap gap-1">
-                                            {mockProducts.map(p => {
+                                            {products.map(p => {
                                                 const order = m.orders.find(o => o.productId === p.id);
                                                 return (
                                                     <div key={p.id} className="flex items-center gap-1 glass-card px-2 py-1 text-xs">
@@ -759,142 +594,6 @@ export default function AdminDashboardPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* نافذة إنهاء الجلسة */}
-            <Dialog open={!!endSessionModal} onOpenChange={() => setEndSessionModal(null)}>
-                <DialogContent className="glass-modal sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle className="gradient-text text-xl">إنهاء الجلسة</DialogTitle>
-                        <DialogDescription>{endSessionModal?.tableName}</DialogDescription>
-                    </DialogHeader>
-                    {endSessionModal && (() => {
-                        const totals = getSessionTotal(endSessionModal);
-                        return (
-                            <div className="space-y-4 py-4">
-                                {/* سجل الطاولات المستخدمة */}
-                                {endSessionModal.tableHistory.length > 1 && (
-                                    <div className="glass-card p-3">
-                                        <p className="text-xs text-muted-foreground mb-2">الطاولات المستخدمة:</p>
-                                        <div className="flex flex-wrap gap-1">
-                                            {endSessionModal.tableHistory.map((th, i) => (
-                                                <Badge key={i} variant="outline" className="text-xs">
-                                                    {th.tableName}
-                                                </Badge>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                <div className="glass-card p-4 space-y-3">
-                                    {endSessionModal.members.map(member => {
-                                        const ordersCost = member.orders.reduce((s, o) => s + (o.price * o.quantity), 0);
-                                        return (
-                                            <div key={member.id} className="flex items-center justify-between text-sm">
-                                                <span>{member.name}</span>
-                                                <span>{formatCurrency(ordersCost)} طلبات</span>
-                                            </div>
-                                        );
-                                    })}
-                                    <div className="border-t border-white/10 pt-2 space-y-1 text-sm">
-                                        <div className="flex justify-between"><span>تكلفة الوقت</span><span>{formatCurrency(totals.timeCost)}</span></div>
-                                        <div className="flex justify-between"><span>تكلفة الطلبات</span><span>{formatCurrency(totals.ordersCost)}</span></div>
-                                    </div>
-                                    <div className="border-t border-white/10 pt-2 flex justify-between font-bold">
-                                        <span>الإجمالي</span><span className="gradient-text text-lg">{formatCurrency(totals.total)}</span>
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>طريقة الدفع</Label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {[{ id: 'cash', label: 'كاش', icon: Banknote }, { id: 'visa', label: 'كارت', icon: CreditCard },
-                                        { id: 'wallet', label: 'محفظة موبيل', icon: Smartphone }, { id: 'cairoom', label: 'محفظة CAIROOM', icon: Wallet }].map(method => (
-                                            <Button key={method.id} variant="ghost" className={cn('glass-button h-12 justify-start', paymentMethod === method.id && 'bg-[#F18A21]/20 border-[#F18A21]')}
-                                                onClick={() => setPaymentMethod(method.id)}>
-                                                <method.icon className="h-4 w-4 ml-2" />{method.label}
-                                            </Button>
-                                        ))}
-                                    </div>
-
-                                    {/* تفاصيل اضافية للدفع - محاكاة فقط للواجهة */}
-                                    {paymentMethod === 'visa' && (
-                                        <div className="mt-2 animate-in fade-in">
-                                            <Label>اسم صاحب الكارت</Label>
-                                            <Input className="glass-input mt-1" placeholder="الاسم كما في البطاقة" />
-                                        </div>
-                                    )}
-                                    {paymentMethod === 'wallet' && (
-                                        <div className="mt-2 animate-in fade-in space-y-2">
-                                            <Input className="glass-input" placeholder="اسم صاحب المحفظة" />
-                                            <Input className="glass-input" placeholder="رقم المحفظة" />
-                                        </div>
-                                    )}
-                                    {paymentMethod === 'cairoom' && (
-                                        <div className="mt-2 animate-in fade-in">
-                                            <Label>العضو الدافع</Label>
-                                            <Select>
-                                                <SelectTrigger className="glass-input"><SelectValue placeholder="اختر العضو" /></SelectTrigger>
-                                                <SelectContent className="glass-modal">
-                                                    {endSessionModal.members.map(m => (
-                                                        <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })()}
-                    <DialogFooter className="gap-2">
-                        <Button variant="ghost" className="glass-button" onClick={() => setEndSessionModal(null)}>إلغاء</Button>
-                        <Button className="gradient-button" onClick={handleEndSession}>إنهاء وحفظ</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* نافذة تبديل الطاولة */}
-            <Dialog open={!!switchTableModal} onOpenChange={() => setSwitchTableModal(null)}>
-                <DialogContent className="glass-modal sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle className="gradient-text text-xl">تبديل الطاولة</DialogTitle>
-                        <DialogDescription>اختر طاولة متاحة للانتقال إليها</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-3 py-4">
-                        {switchTableModal && (
-                            <div className="glass-card p-3 mb-4">
-                                <p className="text-sm text-muted-foreground">الطاولة الحالية</p>
-                                <p className="font-bold">{switchTableModal.tableName}</p>
-                                {switchTableModal.tableHistory.length > 1 && (
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                        الطاولات السابقة: {switchTableModal.tableHistory.slice(0, -1).map(th => th.tableName).join(' → ')}
-                                    </p>
-                                )}
-                            </div>
-                        )}
-                        <p className="text-sm font-medium">الطاولات المتاحة:</p>
-                        <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto">
-                            {availableTables
-                                .filter(t => !(switchTableModal?.tableId === t.id))
-                                .map(table => (
-                                    <button
-                                        key={table.id}
-                                        onClick={() => handleSwitchTable(table.id)}
-                                        className="glass-card p-3 text-right hover:bg-white/10 transition-colors"
-                                    >
-                                        <p className="font-medium">{table.name}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {table.capacity_min}-{table.capacity_max} • {formatCurrency(table.price_per_hour_per_person)}/س/فرد
-                                        </p>
-                                    </button>
-                                ))}
-                        </div>
-                        {availableTables.filter(t => switchTableModal?.tableId !== t.id).length === 0 && (
-                            <p className="text-sm text-muted-foreground text-center p-4">لا توجد طاولات متاحة</p>
-                        )}
-                    </div>
-                    <DialogFooter>
-                        <Button variant="ghost" className="glass-button" onClick={() => setSwitchTableModal(null)}>إلغاء</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
+        </div >
     );
 }

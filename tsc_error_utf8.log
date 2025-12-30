@@ -1,0 +1,7 @@
+﻿src/actions/members.ts(37,10): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: never, options?: { count?: "exact" | "planned" | "estimated" | undefined; } | undefined): PostgrestFilterBuilder<{ PostgrestVersion: "12"; }, never, never, null, "users", never, "POST">', gave the following error.
+    Argument of type '{ full_name: string; phone: string; role: string; referral_code: string; }' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(values: never[], options?: { count?: "exact" | "planned" | "estimated" | undefined; defaultToNull?: boolean | undefined; } | undefined): PostgrestFilterBuilder<{ PostgrestVersion: "12"; }, never, never, null, "users", never, "POST">', gave the following error.
+    Object literal may only specify known properties, and 'full_name' does not exist in type 'never[]'.
+src/app/(admin)/sessions/page.tsx(26,44): error TS2305: Module '"@/actions/sessions"' has no exported member 'searchMembers'.
+src/app/(admin)/sessions/page.tsx(26,59): error TS2305: Module '"@/actions/sessions"' has no exported member 'createMember'.
