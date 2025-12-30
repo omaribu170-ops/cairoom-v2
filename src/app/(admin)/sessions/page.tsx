@@ -64,6 +64,8 @@ interface ActiveSession {
 
 interface HistorySession {
     id: string;
+    type: 'table' | 'hall'; // نوع الجلسة: طاولة أو قاعة
+    hallName?: string; // اسم القاعة (لو نوعها hall)
     tablesUsed: string[]; // قائمة الطاولات المستخدمة
     date: string;
     startTime: string;
@@ -108,28 +110,45 @@ const initialActiveSessions: ActiveSession[] = [
 // بيانات تجريبية لسجل الجلسات مع الطاولات المستخدمة
 const mockHistorySessions: HistorySession[] = [
     {
-        id: 'hist-001',
-        tablesUsed: ['طاولة ١', 'طاولة ٣'], // انتقل من طاولة لطاولة
+        id: 'hist-001', type: 'table',
+        tablesUsed: ['طاولة ١', 'طاولة ٣'],
         date: '2024-12-28', startTime: '14:00', endTime: '17:30',
         members: [{ id: 'm1', name: 'أحمد محمد', phone: '01012345678', joinedAt: '', leftAt: '', orders: [{ product: 'قهوة', quantity: 3, price: 25 }] }],
         totalTimeCost: 88, totalOrdersCost: 75, grandTotal: 163
     },
     {
-        id: 'hist-002',
-        tablesUsed: ['غرفة الاجتماعات'],
+        id: 'hist-002', type: 'hall', hallName: 'قاعة VIP',
+        tablesUsed: ['غرفة VIP ١', 'غرفة VIP ٢'],
         date: '2024-12-28', startTime: '10:00', endTime: '12:00',
         members: [
             { id: 'm3', name: 'محمد علي', phone: '01234567890', joinedAt: '', leftAt: '', orders: [] },
             { id: 'm5', name: 'ياسمين خالد', phone: '01156789012', joinedAt: '', leftAt: '', orders: [{ product: 'شاي', quantity: 2, price: 15 }] },
         ],
-        totalTimeCost: 120, totalOrdersCost: 30, grandTotal: 150
+        totalTimeCost: 700, totalOrdersCost: 30, grandTotal: 730
     },
     {
-        id: 'hist-003',
-        tablesUsed: ['طاولة ٣', 'طاولة ٥', 'طاولة ٦'], // انتقل 3 مرات
+        id: 'hist-003', type: 'table',
+        tablesUsed: ['طاولة ٣', 'طاولة ٥', 'طاولة ٦'],
         date: '2024-12-27', startTime: '16:00', endTime: '19:00',
         members: [{ id: 'm2', name: 'سارة أحمد', phone: '01123456789', joinedAt: '', leftAt: '', orders: [{ product: 'عصير', quantity: 2, price: 30 }] }],
         totalTimeCost: 60, totalOrdersCost: 60, grandTotal: 120
+    },
+    {
+        id: 'hist-004', type: 'hall', hallName: 'القاعة الرئيسية',
+        tablesUsed: ['طاولة ١', 'طاولة ٢', 'طاولة ٣'],
+        date: '2024-12-26', startTime: '18:00', endTime: '22:00',
+        members: [
+            { id: 'm1', name: 'أحمد محمد', phone: '01012345678', joinedAt: '', leftAt: '', orders: [] },
+            { id: 'm2', name: 'سارة أحمد', phone: '01123456789', joinedAt: '', leftAt: '', orders: [] },
+        ],
+        totalTimeCost: 800, totalOrdersCost: 0, grandTotal: 800
+    },
+    {
+        id: 'hist-005', type: 'table',
+        tablesUsed: ['طاولة ٢'],
+        date: '2024-12-25', startTime: '14:00', endTime: '16:00',
+        members: [{ id: 'm4', name: 'عمر حسن', phone: '01098765432', joinedAt: '', leftAt: '', orders: [{ product: 'قهوة', quantity: 1, price: 25 }] }],
+        totalTimeCost: 50, totalOrdersCost: 25, grandTotal: 75
     },
 ];
 
@@ -171,6 +190,9 @@ export default function SessionsPage() {
     const [newMemberPhone, setNewMemberPhone] = useState('');
     const [showAddNew, setShowAddNew] = useState(false);
 
+    // تبويبات سجل الجلسات
+    const [historySubTab, setHistorySubTab] = useState<'all' | 'tables' | 'halls'>('all');
+
     const filteredMembers = mockAllMembers.filter(m =>
         m.full_name.toLowerCase().includes(memberSearch.toLowerCase()) || m.phone.includes(memberSearch)
     );
@@ -178,9 +200,13 @@ export default function SessionsPage() {
     const filteredHistory = historySessions.filter(s => {
         const matchesSearch = s.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
             s.members.some(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()) || m.phone.includes(searchQuery)) ||
-            s.tablesUsed.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+            s.tablesUsed.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            (s.hallName && s.hallName.toLowerCase().includes(searchQuery.toLowerCase()));
         const matchesDate = !dateFilter || s.date === dateFilter;
-        return matchesSearch && matchesDate;
+        const matchesType = historySubTab === 'all' ||
+            (historySubTab === 'tables' && s.type === 'table') ||
+            (historySubTab === 'halls' && s.type === 'hall');
+        return matchesSearch && matchesDate && matchesType;
     });
 
     const availableTables = mockTables.filter(t => t.status === 'available');
@@ -365,6 +391,22 @@ export default function SessionsPage() {
 
                 {/* سجل الجلسات */}
                 <TabsContent value="history" className="space-y-4 mt-6">
+                    {/* التبويبات الفرعية */}
+                    <div className="flex gap-2 flex-wrap">
+                        <Button size="sm" variant="ghost" className={cn('glass-button', historySubTab === 'all' && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                            onClick={() => setHistorySubTab('all')}>
+                            الكل ({historySessions.length})
+                        </Button>
+                        <Button size="sm" variant="ghost" className={cn('glass-button', historySubTab === 'tables' && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                            onClick={() => setHistorySubTab('tables')}>
+                            جلسات الطاولات ({historySessions.filter(s => s.type === 'table').length})
+                        </Button>
+                        <Button size="sm" variant="ghost" className={cn('glass-button', historySubTab === 'halls' && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                            onClick={() => setHistorySubTab('halls')}>
+                            جلسات القاعات ({historySessions.filter(s => s.type === 'hall').length})
+                        </Button>
+                    </div>
+
                     <div className="flex flex-col md:flex-row gap-4">
                         <div className="relative flex-1">
                             <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -378,6 +420,7 @@ export default function SessionsPage() {
                             <TableHeader>
                                 <TableRow className="border-white/10 hover:bg-white/5">
                                     <TableHead className="text-right">رقم الجلسة</TableHead>
+                                    <TableHead className="text-right">النوع</TableHead>
                                     <TableHead className="text-right">الطاولات</TableHead>
                                     <TableHead className="text-right">الأعضاء</TableHead>
                                     <TableHead className="text-right">التاريخ</TableHead>
@@ -390,6 +433,11 @@ export default function SessionsPage() {
                                 {filteredHistory.map((session) => (
                                     <TableRow key={session.id} className="border-white/5 hover:bg-white/5">
                                         <TableCell className="font-mono text-xs">{session.id}</TableCell>
+                                        <TableCell>
+                                            <Badge variant="outline" className={cn('text-xs', session.type === 'hall' ? 'border-[#F18A21] text-[#F18A21]' : 'border-emerald-500 text-emerald-400')}>
+                                                {session.type === 'hall' ? (session.hallName || 'قاعة') : 'طاولة'}
+                                            </Badge>
+                                        </TableCell>
                                         <TableCell>
                                             <div className="flex flex-wrap gap-1">
                                                 {session.tablesUsed.map((t, i) => (
