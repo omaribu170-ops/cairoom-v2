@@ -153,11 +153,33 @@ export default function AdminDashboardPage() {
         m.full_name.toLowerCase().includes(memberSearch.toLowerCase()) || m.phone.includes(memberSearch)
     );
 
+    // التحقق إذا العضو موجود في جلسة نشطة
+    const isMemberInActiveSession = (memberId: string) => {
+        return activeSessions.some(session =>
+            session.members.some(m => m.id === memberId)
+        );
+    };
+
+    // الحصول على اسم الجلسة النشطة للعضو
+    const getMemberActiveSessionName = (memberId: string) => {
+        const session = activeSessions.find(s => s.members.some(m => m.id === memberId));
+        return session ? (session.hallName || session.tableName) : null;
+    };
+
     // إضافة عضو موجود للجلسة
     const handleAddExistingMember = (member: typeof mockMembers[0]) => {
-        if (!sessionMembers.find(m => m.id === member.id)) {
-            setSessionMembers([...sessionMembers, { id: member.id, name: member.full_name, orders: [] }]);
+        // التحقق إذا العضو موجود بالفعل في الجلسة الحالية
+        if (sessionMembers.find(m => m.id === member.id)) {
+            setMemberSearch('');
+            return;
         }
+        // التحقق إذا العضو موجود في جلسة نشطة أخرى
+        if (isMemberInActiveSession(member.id)) {
+            const sessionName = getMemberActiveSessionName(member.id);
+            toast.error(`${member.full_name} موجود بالفعل في جلسة نشطة (${sessionName})`);
+            return;
+        }
+        setSessionMembers([...sessionMembers, { id: member.id, name: member.full_name, orders: [] }]);
         setMemberSearch('');
     };
 

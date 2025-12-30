@@ -251,16 +251,46 @@ export default function SessionsPage() {
         setEndMemberModal(null);
     };
 
+    // التحقق إذا العضو موجود في جلسة نشطة
+    const isMemberInActiveSession = (memberId: string, excludeSessionId?: string) => {
+        return activeSessions.some(session =>
+            session.id !== excludeSessionId &&
+            session.members.some(m => m.id === memberId && !m.leftAt)
+        );
+    };
+
+    // الحصول على اسم الجلسة النشطة للعضو
+    const getMemberActiveSessionName = (memberId: string, excludeSessionId?: string) => {
+        const session = activeSessions.find(s =>
+            s.id !== excludeSessionId &&
+            s.members.some(m => m.id === memberId && !m.leftAt)
+        );
+        return session ? (session.hallName || session.tableName) : null;
+    };
+
     // إضافة عضو
     const handleAddMemberToSession = (member: typeof mockAllMembers[0]) => {
         if (!addMemberModal) return;
+
+        // التحقق إذا العضو موجود بالفعل في الجلسة الحالية
+        if (addMemberModal.members.find(m => m.id === member.id && !m.leftAt)) {
+            setMemberSearch('');
+            return;
+        }
+
+        // التحقق إذا العضو موجود في جلسة نشطة أخرى
+        if (isMemberInActiveSession(member.id, addMemberModal.id)) {
+            const sessionName = getMemberActiveSessionName(member.id, addMemberModal.id);
+            toast.error(`${member.full_name} موجود بالفعل في جلسة نشطة (${sessionName})`);
+            return;
+        }
+
         const newMember: SessionMember = {
             id: member.id, name: member.full_name, phone: member.phone,
             joinedAt: new Date().toISOString(), leftAt: null, orders: []
         };
         setActiveSessions(activeSessions.map(s => {
             if (s.id !== addMemberModal.id) return s;
-            if (s.members.find(m => m.id === member.id && !m.leftAt)) return s;
             return { ...s, members: [...s.members, newMember] };
         }));
         toast.success(`تم إضافة ${member.full_name}`);
