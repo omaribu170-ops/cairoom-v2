@@ -158,6 +158,7 @@ export default function MembersPage() {
     // نوافذ جديدة
     const [editMemberModalOpen, setEditMemberModalOpen] = useState(false);
     const [lastVisitsModalOpen, setLastVisitsModalOpen] = useState(false);
+    const [visitInvoiceModal, setVisitInvoiceModal] = useState<typeof mockVisitHistory[0] | null>(null);
 
     // نموذج إضافة عضو
     const [newMemberForm, setNewMemberForm] = useState({
@@ -868,6 +869,7 @@ export default function MembersPage() {
                                             <TableHead className="text-right">الوقت</TableHead>
                                             <TableHead className="text-right">الطاولة</TableHead>
                                             <TableHead className="text-right">الإجمالي</TableHead>
+                                            <TableHead className="text-right w-[80px]">عرض</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -877,6 +879,12 @@ export default function MembersPage() {
                                                 <TableCell>{visit.startTime} - {visit.endTime}</TableCell>
                                                 <TableCell>{visit.tableName}</TableCell>
                                                 <TableCell className="font-bold">{formatCurrency(visit.totalCost)}</TableCell>
+                                                <TableCell>
+                                                    <Button size="sm" variant="ghost" className="glass-button h-7 px-2"
+                                                        onClick={() => setVisitInvoiceModal(visit)}>
+                                                        <Eye className="h-3 w-3" />
+                                                    </Button>
+                                                </TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
@@ -889,6 +897,34 @@ export default function MembersPage() {
                         <Button variant="ghost" className="glass-button" onClick={() => setLastVisitsModalOpen(false)}>
                             إغلاق
                         </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* نافذة فاتورة الزيارة */}
+            <Dialog open={!!visitInvoiceModal} onOpenChange={() => setVisitInvoiceModal(null)}>
+                <DialogContent className="glass-modal sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="gradient-text text-xl">فاتورة الجلسة</DialogTitle>
+                    </DialogHeader>
+                    {visitInvoiceModal && (
+                        <div className="space-y-4 py-4">
+                            <div className="glass-card p-4 space-y-2 text-sm">
+                                <div className="flex justify-between"><span className="text-muted-foreground">رقم الجلسة</span><span className="font-mono">{visitInvoiceModal.id}</span></div>
+                                <div className="flex justify-between"><span className="text-muted-foreground">التاريخ</span><span>{visitInvoiceModal.date}</span></div>
+                                <div className="flex justify-between"><span className="text-muted-foreground">الوقت</span><span>{visitInvoiceModal.startTime} - {visitInvoiceModal.endTime}</span></div>
+                                <div className="flex justify-between"><span className="text-muted-foreground">الطاولة</span><span>{visitInvoiceModal.tableName}</span></div>
+                            </div>
+                            <div className="glass-card p-4">
+                                <div className="flex justify-between font-bold">
+                                    <span>الإجمالي</span>
+                                    <span className="gradient-text text-lg">{formatCurrency(visitInvoiceModal.totalCost)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="ghost" className="glass-button" onClick={() => setVisitInvoiceModal(null)}>إغلاق</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

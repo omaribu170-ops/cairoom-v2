@@ -57,12 +57,15 @@ const mockMembers = [
     { id: 'm4', full_name: 'عمر حسن', phone: '01098765432', gender: 'male' },
 ];
 
-// بيانات المنتجات
-const mockProducts = [
-    { id: 'p1', name: 'قهوة تركي', price: 25 },
-    { id: 'p2', name: 'شاي', price: 15 },
-    { id: 'p3', name: 'عصير برتقال', price: 30 },
-    { id: 'p4', name: 'ساندويتش', price: 40 },
+// بيانات المنتجات (المخزون) - طعام ومشروبات فقط
+const initialInventoryProducts = [
+    { id: 'p1', name: 'قهوة تركي', type: 'drink' as const, price: 25, stock_quantity: 100 },
+    { id: 'p2', name: 'شاي', type: 'drink' as const, price: 15, stock_quantity: 200 },
+    { id: 'p3', name: 'عصير برتقال', type: 'drink' as const, price: 30, stock_quantity: 50 },
+    { id: 'p4', name: 'نسكافيه', type: 'drink' as const, price: 20, stock_quantity: 80 },
+    { id: 'p5', name: 'ساندويتش جبنة', type: 'food' as const, price: 35, stock_quantity: 30 },
+    { id: 'p6', name: 'كرواسون', type: 'food' as const, price: 25, stock_quantity: 40 },
+    { id: 'p7', name: 'بيتزا صغيرة', type: 'food' as const, price: 45, stock_quantity: 20 },
 ];
 
 // أنواع البيانات
@@ -245,6 +248,10 @@ export default function AdminDashboardPage() {
     const [timePeriod, setTimePeriod] = useState<TimePeriod>('day');
     const [customDate, setCustomDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [activeSessions, setActiveSessions] = useState<ActiveSession[]>(initialActiveSessions);
+
+    // حالة المخزون وإيرادات الطلبات
+    const [inventoryProducts, setInventoryProducts] = useState(initialInventoryProducts);
+    const [ordersRevenue, setOrdersRevenue] = useState(0);
 
     // Start Session Modal State
     const [startSessionOpen, setStartSessionOpen] = useState(false);
@@ -459,8 +466,24 @@ export default function AdminDashboardPage() {
 
     const handleUpdateMemberOrder = (memberId: string, productId: string, delta: number) => {
         if (!addOrderModal) return;
-        const product = mockProducts.find(p => p.id === productId);
+        const product = inventoryProducts.find(p => p.id === productId);
         if (!product) return;
+
+        // تحقق من توفر الكمية عند الإضافة
+        if (delta > 0 && product.stock_quantity < delta) {
+            toast.error(`الكمية غير كافية من ${product.name} (المتوفر: ${product.stock_quantity})`);
+            return;
+        }
+
+        // تحديث المخزون
+        setInventoryProducts(prev => prev.map(p =>
+            p.id === productId ? { ...p, stock_quantity: p.stock_quantity - delta } : p
+        ));
+
+        // تتبع الإيرادات
+        if (delta > 0) {
+            setOrdersRevenue(prev => prev + (product.price * delta));
+        }
 
         setActiveSessions(prev => prev.map(s => {
             if (s.id !== addOrderModal.session.id) return s;
@@ -525,7 +548,7 @@ export default function AdminDashboardPage() {
     };
 
     const handleAdjustProduct = (memberId: string, productId: string, delta: number) => {
-        const product = mockProducts.find(p => p.id === productId);
+        const product = inventoryProducts.find(p => p.id === productId);
         if (!product) return;
         setSessionMembers(sessionMembers.map(m => {
             if (m.id !== memberId) return m;
@@ -1053,7 +1076,7 @@ export default function AdminDashboardPage() {
                     {addOrderModal && (
                         <div className="space-y-4 py-4">
                             <div className="flex flex-wrap gap-2">
-                                {mockProducts.map(product => {
+                                {inventoryProducts.map(product => {
                                     const currentMember = activeSessions.find((s: ActiveSession) => s.id === addOrderModal.session.id)?.members.find((m: SessionMember) => m.id === addOrderModal.member.id);
                                     const order = currentMember?.orders.find((o: any) => o.productId === product.id);
                                     return (
@@ -1287,7 +1310,7 @@ export default function AdminDashboardPage() {
                                             <Button size="sm" variant="ghost" className="text-red-400 h-6 w-6 p-0" onClick={() => handleRemoveSessionMember(m.id)}><X className="h-4 w-4" /></Button>
                                         </div>
                                         <div className="flex flex-wrap gap-1">
-                                            {mockProducts.map(p => {
+                                            {inventoryProducts.map(p => {
                                                 const order = m.orders.find(o => o.productId === p.id);
                                                 return (
                                                     <div key={p.id} className="flex items-center gap-1 glass-card px-2 py-1 text-xs">
