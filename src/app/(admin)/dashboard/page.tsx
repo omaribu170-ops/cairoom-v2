@@ -34,19 +34,19 @@ const periodLabels: Record<TimePeriod, string> = {
 
 // بيانات تجريبية للقاعات
 const mockHalls = [
-    { id: 'h1', name: 'القاعة الرئيسية', tables: ['1', '2', '3'], price_per_hour: 200, capacity_min: 10, capacity_max: 20 },
-    { id: 'h2', name: 'قاعة VIP', tables: ['4', '5'], price_per_hour: 350, capacity_min: 5, capacity_max: 10 },
-    { id: 'h3', name: 'الحديقة', tables: ['6'], price_per_hour: 150, capacity_min: 15, capacity_max: 30 },
+    { id: 'h1', name: 'القاعة الرئيسية', tables: ['1', '2', '3'], first_hour_cost: 200, remaining_hour_cost: 150, capacity_min: 10, capacity_max: 20 },
+    { id: 'h2', name: 'قاعة VIP', tables: ['4', '5'], first_hour_cost: 350, remaining_hour_cost: 250, capacity_min: 5, capacity_max: 10 },
+    { id: 'h3', name: 'الحديقة', tables: ['6'], first_hour_cost: 150, remaining_hour_cost: 100, capacity_min: 15, capacity_max: 30 },
 ];
 
 // بيانات تجريبية للطاولات
 const mockTables = [
-    { id: '1', name: 'طاولة ١', hallId: 'h1', capacity_min: 2, capacity_max: 4, price_per_hour_per_person: 25, status: 'available' },
-    { id: '2', name: 'طاولة ٢', hallId: 'h1', capacity_min: 2, capacity_max: 6, price_per_hour_per_person: 25, status: 'busy' },
-    { id: '3', name: 'طاولة ٣', hallId: 'h1', capacity_min: 4, capacity_max: 8, price_per_hour_per_person: 20, status: 'available' },
-    { id: '4', name: 'غرفة VIP ١', hallId: 'h2', capacity_min: 6, capacity_max: 12, price_per_hour_per_person: 50, status: 'available' },
-    { id: '5', name: 'غرفة VIP ٢', hallId: 'h2', capacity_min: 4, capacity_max: 8, price_per_hour_per_person: 50, status: 'available' },
-    { id: '6', name: 'طاولة الحديقة', hallId: 'h3', capacity_min: 4, capacity_max: 10, price_per_hour_per_person: 30, status: 'available' },
+    { id: '1', name: 'طاولة ١', hallId: 'h1', capacity_min: 2, capacity_max: 4, first_hour_cost: 25, remaining_hour_cost: 15, status: 'available' },
+    { id: '2', name: 'طاولة ٢', hallId: 'h1', capacity_min: 2, capacity_max: 6, first_hour_cost: 25, remaining_hour_cost: 15, status: 'busy' },
+    { id: '3', name: 'طاولة ٣', hallId: 'h1', capacity_min: 4, capacity_max: 8, first_hour_cost: 20, remaining_hour_cost: 12, status: 'available' },
+    { id: '4', name: 'غرفة VIP ١', hallId: 'h2', capacity_min: 6, capacity_max: 12, first_hour_cost: 50, remaining_hour_cost: 35, status: 'available' },
+    { id: '5', name: 'غرفة VIP ٢', hallId: 'h2', capacity_min: 4, capacity_max: 8, first_hour_cost: 50, remaining_hour_cost: 35, status: 'available' },
+    { id: '6', name: 'طاولة الحديقة', hallId: 'h3', capacity_min: 4, capacity_max: 10, first_hour_cost: 30, remaining_hour_cost: 20, status: 'available' },
 ];
 
 // بيانات تجريبية للأعضاء
@@ -96,7 +96,8 @@ interface ActiveSession {
     hallName?: string; // اسم القاعة (لو نوعها hall)
     tableId: string;
     tableName: string;
-    pricePerHour: number;
+    firstHourCost: number; // تكلفة الساعة الأولى لكل فرد
+    remainingHourCost: number; // تكلفة الساعات المتبقية لكل فرد
     startTime: string;
     members: SessionMember[];
     tableHistory: TableHistoryEntry[];
@@ -105,7 +106,7 @@ interface ActiveSession {
 
 const initialActiveSessions: ActiveSession[] = [
     {
-        id: 'session-1', type: 'table', tableId: '2', tableName: 'طاولة ٢', pricePerHour: 25,
+        id: 'session-1', type: 'table', tableId: '2', tableName: 'طاولة ٢', firstHourCost: 25, remainingHourCost: 15,
         startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
         members: [
             { id: 'm1', name: 'أحمد محمد', phone: '01012345678', joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), leftAt: null, orders: [{ productId: 'p1', name: 'قهوة تركي', quantity: 2, price: 25 }] },
@@ -114,7 +115,7 @@ const initialActiveSessions: ActiveSession[] = [
         tableHistory: [{ tableId: '2', tableName: 'طاولة ٢', pricePerHour: 25, startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() }]
     },
     {
-        id: 'session-2', type: 'hall', hallName: 'قاعة VIP', tableId: 'h2', tableName: 'غرفة VIP ١ + غرفة VIP ٢', pricePerHour: 350,
+        id: 'session-2', type: 'hall', hallName: 'قاعة VIP', tableId: 'h2', tableName: 'غرفة VIP ١ + غرفة VIP ٢', firstHourCost: 350, remainingHourCost: 250,
         startTime: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
         members: [
             { id: 'm3', name: 'محمد علي', phone: '01234567890', joinedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(), leftAt: null, orders: [{ productId: 'p4', name: 'ساندويتش', quantity: 2, price: 40 }] },
@@ -167,10 +168,22 @@ const getSessionTotal = (session: ActiveSession) => {
     return { timeCost, ordersCost, total: timeCost + ordersCost };
 };
 
-// حساب فاتورة العضو
-const getMemberBill = (member: SessionMember, pricePerHour: number) => {
+// حساب فاتورة العضو مع الأسعار المتدرجة
+const getMemberBill = (member: SessionMember, firstHourCost: number, remainingHourCost: number) => {
     const duration = calculateDuration(member.joinedAt, member.leftAt || undefined);
-    const timeCost = calculateTimeCost(duration, pricePerHour);
+    const hours = duration / 60;
+
+    // ساعة أولى + ساعات متبقية
+    let timeCost = 0;
+    if (hours <= 1) {
+        // أقل من ساعة: تحسب ساعة كاملة بسعر الساعة الأولى
+        timeCost = firstHourCost;
+    } else {
+        // ساعة أولى + باقي الساعات
+        const remainingHours = Math.ceil(hours - 1);
+        timeCost = firstHourCost + (remainingHours * remainingHourCost);
+    }
+
     const ordersCost = member.orders.reduce((sum, o) => sum + (o.price * o.quantity), 0);
     return { duration, timeCost, ordersCost, total: timeCost + ordersCost };
 };
@@ -259,9 +272,9 @@ export default function AdminDashboardPage() {
         if (paymentMethod === 'visa' && !paymentDetails.cardHolder) return toast.error('يرجى إدخال اسم صاحب الكارت');
         if (paymentMethod === 'wallet' && (!paymentDetails.walletNumber || !paymentDetails.walletOwner)) return toast.error('يرجى إدخال بيانات المحفظة');
         if (paymentMethod === 'cairoom' && !paymentDetails.cairoomUser) return toast.error('يرجى اختيار العضو صاحب المحفظة');
-        if (paymentMethod === 'cairoom' && cairoomWalletBalance !== null && getMemberBill(member, session.pricePerHour).total > cairoomWalletBalance) return toast.error('الرصيد غير كافي');
+        if (paymentMethod === 'cairoom' && cairoomWalletBalance !== null && getMemberBill(member, session.firstHourCost, session.remainingHourCost).total > cairoomWalletBalance) return toast.error('الرصيد غير كافي');
 
-        const bill = getMemberBill(member, session.pricePerHour);
+        const bill = getMemberBill(member, session.firstHourCost, session.remainingHourCost);
 
         setActiveSessions(activeSessions.map(s => {
             if (s.id !== session.id) return s;
@@ -368,14 +381,15 @@ export default function AdminDashboardPage() {
             updatedHistory.push({
                 tableId: newTableId,
                 tableName: newTable.name,
-                pricePerHour: newTable.price_per_hour_per_person,
+                pricePerHour: newTable.first_hour_cost,
                 startTime: now,
             });
             return {
                 ...s,
                 tableId: newTableId,
                 tableName: newTable.name,
-                pricePerHour: newTable.price_per_hour_per_person,
+                firstHourCost: newTable.first_hour_cost,
+                remainingHourCost: newTable.remaining_hour_cost,
                 tableHistory: updatedHistory,
             };
         }));
@@ -480,7 +494,8 @@ export default function AdminDashboardPage() {
         const hall = mockHalls.find(h => h.id === selectedHall);
         const tableNames = selectedHallTables.map(id => mockTables.find(t => t.id === id)?.name).join(' + ');
         const now = new Date().toISOString();
-        const pricePerHour = sessionType === 'table' ? (table?.price_per_hour_per_person || 25) : (hall?.price_per_hour || 200);
+        const firstHourCost = sessionType === 'table' ? (table?.first_hour_cost || 25) : (hall?.first_hour_cost || 200);
+        const remainingHourCost = sessionType === 'table' ? (table?.remaining_hour_cost || 15) : (hall?.remaining_hour_cost || 150);
 
         const newSession: ActiveSession = {
             id: `session-${Date.now()}`,
@@ -488,7 +503,8 @@ export default function AdminDashboardPage() {
             hallName: sessionType === 'hall' ? hall?.name : undefined,
             tableId: sessionType === 'table' ? selectedTable : selectedHall,
             tableName: sessionType === 'table' ? (table?.name || '') : tableNames,
-            pricePerHour,
+            firstHourCost,
+            remainingHourCost,
             startTime: now,
             members: sessionMembers.map(m => ({
                 id: m.id,
@@ -501,7 +517,7 @@ export default function AdminDashboardPage() {
             tableHistory: [{
                 tableId: sessionType === 'table' ? selectedTable : selectedHall,
                 tableName: sessionType === 'table' ? (table?.name || '') : (hall?.name || ''),
-                pricePerHour,
+                pricePerHour: firstHourCost,
                 startTime: now,
             }],
             hallTableIds: sessionType === 'hall' ? selectedHallTables : undefined,
@@ -662,7 +678,7 @@ export default function AdminDashboardPage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 gap-4">
                 {activeSessions.map((session: ActiveSession) => (
                     <Card key={session.id} className="glass-card overflow-hidden group">
                         <CardHeader className="p-4 pb-2 border-b border-white/5 bg-white/5">
@@ -676,7 +692,7 @@ export default function AdminDashboardPage() {
                                 </div>
                                 <div className="text-left">
                                     <SessionTimer startTime={session.startTime} className="text-sm font-mono font-bold text-[#F18A21]" />
-                                    <p className="text-[10px] text-muted-foreground">{formatCurrency(session.pricePerHour)}/س</p>
+                                    <p className="text-[10px] text-muted-foreground">{formatCurrency(session.firstHourCost)}/ساعة أولى</p>
                                 </div>
                             </div>
                         </CardHeader>
@@ -759,7 +775,7 @@ export default function AdminDashboardPage() {
                                 )}
                                 <div className="glass-card p-4 space-y-3">
                                     {endSessionModal.members.filter(m => !m.leftAt).map(member => {
-                                        const bill = getMemberBill(member, endSessionModal.pricePerHour);
+                                        const bill = getMemberBill(member, endSessionModal.firstHourCost, endSessionModal.remainingHourCost);
                                         return (
                                             <div key={member.id} className="flex items-center justify-between text-sm">
                                                 <span>{member.name}</span><span>{formatCurrency(bill.total)}</span>
@@ -878,7 +894,7 @@ export default function AdminDashboardPage() {
                 <DialogContent className="glass-modal sm:max-w-sm">
                     <DialogHeader><DialogTitle className="gradient-text text-xl">إنهاء جلسة العضو</DialogTitle></DialogHeader>
                     {endMemberModal && (() => {
-                        const bill = getMemberBill(endMemberModal.member, endMemberModal.session.pricePerHour);
+                        const bill = getMemberBill(endMemberModal.member, endMemberModal.session.firstHourCost, endMemberModal.session.remainingHourCost);
                         return (
                             <div className="space-y-4 py-4">
                                 <div className="text-center">
@@ -1042,7 +1058,7 @@ export default function AdminDashboardPage() {
                             {availableTables.filter(t => t.id !== switchTableModal?.tableId).map(table => (
                                 <button key={table.id} onClick={() => handleSwitchTable(table.id)} className="glass-card p-3 text-right hover:bg-white/10 transition-colors">
                                     <p className="font-medium">{table.name}</p>
-                                    <p className="text-xs text-muted-foreground">{formatCurrency(table.price_per_hour_per_person)}/س/فرد</p>
+                                    <p className="text-xs text-muted-foreground">{formatCurrency(table.first_hour_cost)}/ساعة أولى</p>
                                 </button>
                             ))}
                         </div>
@@ -1075,7 +1091,7 @@ export default function AdminDashboardPage() {
                                         <button key={t.id} onClick={() => setSelectedTable(t.id)}
                                             className={cn('glass-card p-3 text-right transition-colors', selectedTable === t.id && 'bg-[#F18A21]/20 border-[#F18A21]')}>
                                             <p className="font-medium">{t.name}</p>
-                                            <p className="text-xs text-muted-foreground">{formatCurrency(t.price_per_hour_per_person)}/س/فرد</p>
+                                            <p className="text-xs text-muted-foreground">{formatCurrency(t.first_hour_cost)}/ساعة أولى</p>
                                         </button>
                                     ))}
                                 </div>
@@ -1091,7 +1107,7 @@ export default function AdminDashboardPage() {
                                         <button key={h.id} onClick={() => { setSelectedHall(h.id); setSelectedHallTables([]); }}
                                             className={cn('glass-card p-3 text-right transition-colors', selectedHall === h.id && 'bg-[#F18A21]/20 border-[#F18A21]')}>
                                             <p className="font-medium">{h.name}</p>
-                                            <p className="text-xs text-muted-foreground">{h.capacity_min}-{h.capacity_max} • {formatCurrency(h.price_per_hour)}/ساعة</p>
+                                            <p className="text-xs text-muted-foreground">{h.capacity_min}-{h.capacity_max} • {formatCurrency(h.first_hour_cost)}/ساعة أولى</p>
                                         </button>
                                     ))}
                                 </div>
