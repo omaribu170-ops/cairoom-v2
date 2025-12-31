@@ -65,6 +65,7 @@ const mockMembers: UserType[] = [
         full_name: 'أحمد محمد السعيدي',
         phone: '01012345678',
         email: 'ahmed@example.com',
+        gender: 'male',
         role: 'user',
         cairoom_wallet_balance: 250,
         affiliate_balance: 75,
@@ -81,6 +82,7 @@ const mockMembers: UserType[] = [
         full_name: 'محمد علي',
         phone: '01123456789',
         email: 'mohamed@example.com',
+        gender: 'male',
         role: 'user',
         cairoom_wallet_balance: 100,
         affiliate_balance: 0,
@@ -97,6 +99,7 @@ const mockMembers: UserType[] = [
         full_name: 'سارة أحمد',
         phone: '01234567890',
         email: 'sara@example.com',
+        gender: 'female',
         role: 'user',
         cairoom_wallet_balance: 500,
         affiliate_balance: 120,
@@ -113,6 +116,7 @@ const mockMembers: UserType[] = [
         full_name: 'عمر حسن',
         phone: '01098765432',
         email: null,
+        gender: 'male',
         role: 'user',
         cairoom_wallet_balance: 0,
         affiliate_balance: 0,
@@ -126,6 +130,15 @@ const mockMembers: UserType[] = [
     },
 ];
 
+// سجل زيارات تجريبية
+const mockVisitHistory = [
+    { id: 'v1', memberId: '1', date: '2024-12-28', startTime: '14:00', endTime: '17:30', tableName: 'طاولة ١', totalCost: 163 },
+    { id: 'v2', memberId: '1', date: '2024-12-25', startTime: '10:00', endTime: '12:00', tableName: 'طاولة ٢', totalCost: 100 },
+    { id: 'v3', memberId: '1', date: '2024-12-20', startTime: '16:00', endTime: '19:00', tableName: 'غرفة VIP', totalCost: 350 },
+    { id: 'v4', memberId: '2', date: '2024-12-27', startTime: '11:00', endTime: '14:00', tableName: 'طاولة ٣', totalCost: 120 },
+    { id: 'v5', memberId: '3', date: '2024-12-25', startTime: '15:00', endTime: '18:00', tableName: 'طاولة ١', totalCost: 150 },
+];
+
 export default function MembersPage() {
     const [members, setMembers] = useState<UserType[]>(mockMembers);
     const [searchQuery, setSearchQuery] = useState('');
@@ -136,16 +149,66 @@ export default function MembersPage() {
     const [adjustmentAmount, setAdjustmentAmount] = useState('');
     const [adjustmentType, setAdjustmentType] = useState<'add' | 'subtract'>('add');
 
-    // تصفية الأعضاء
-    const filteredMembers = members.filter((member) => {
-        const query = searchQuery.toLowerCase();
-        return (
-            member.full_name.toLowerCase().includes(query) ||
-            member.phone.includes(query) ||
-            member.email?.toLowerCase().includes(query) ||
-            member.nickname?.toLowerCase().includes(query)
-        );
+    // فلاتر جديدة
+    const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
+    const [joinDateFilter, setJoinDateFilter] = useState('');
+    const [lastVisitSort, setLastVisitSort] = useState<'newest' | 'oldest' | 'none'>('none');
+    const [walletSort, setWalletSort] = useState<'highest' | 'lowest' | 'none'>('none');
+
+    // نوافذ جديدة
+    const [editMemberModalOpen, setEditMemberModalOpen] = useState(false);
+    const [lastVisitsModalOpen, setLastVisitsModalOpen] = useState(false);
+
+    // نموذج إضافة عضو
+    const [newMemberForm, setNewMemberForm] = useState({
+        full_name: '', phone: '', email: '', nickname: '', gender: 'male' as 'male' | 'female'
     });
+
+    // نموذج تعديل عضو
+    const [editMemberForm, setEditMemberForm] = useState({
+        full_name: '', phone: '', email: '', nickname: ''
+    });
+
+    // تصفية وترتيب الأعضاء
+    const filteredMembers = members
+        .filter((member) => {
+            const query = searchQuery.toLowerCase();
+            const matchSearch = member.full_name.toLowerCase().includes(query) ||
+                member.phone.includes(query) ||
+                member.email?.toLowerCase().includes(query) ||
+                member.nickname?.toLowerCase().includes(query);
+            const matchGender = genderFilter === 'all' || member.gender === genderFilter;
+            const matchJoinDate = !joinDateFilter || member.created_at.startsWith(joinDateFilter);
+            return matchSearch && matchGender && matchJoinDate;
+        })
+        .sort((a, b) => {
+            if (lastVisitSort === 'newest') return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+            if (lastVisitSort === 'oldest') return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+            if (walletSort === 'highest') return b.cairoom_wallet_balance - a.cairoom_wallet_balance;
+            if (walletSort === 'lowest') return a.cairoom_wallet_balance - b.cairoom_wallet_balance;
+            return 0;
+        });
+
+    // تصدير CSV
+    const handleExportCSV = () => {
+        const headers = ['الاسم', 'الهاتف', 'الإيميل', 'الجنس', 'رصيد المحفظة', 'تاريخ الانضمام', 'آخر زيارة'];
+        const rows = filteredMembers.map(m => [
+            m.full_name,
+            m.phone,
+            m.email || '',
+            m.gender === 'male' ? 'ذكر' : 'أنثى',
+            m.cairoom_wallet_balance.toString(),
+            m.created_at.split('T')[0],
+            m.updated_at.split('T')[0]
+        ]);
+        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `members_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        toast.success('تم تصدير الأعضاء كـ CSV');
+    };
 
     // إحصائيات سريعة
     const stats = {
@@ -193,6 +256,79 @@ export default function MembersPage() {
         setSelectedMember(null);
     };
 
+    // إضافة عضو جديد
+    const handleAddMember = () => {
+        if (!newMemberForm.full_name || !newMemberForm.phone) {
+            toast.error('يرجى إدخال الاسم ورقم الهاتف');
+            return;
+        }
+        const newMember: UserType = {
+            id: Date.now().toString(),
+            full_name: newMemberForm.full_name,
+            phone: newMemberForm.phone,
+            email: newMemberForm.email || null,
+            gender: newMemberForm.gender,
+            role: 'user',
+            cairoom_wallet_balance: 0,
+            affiliate_balance: 0,
+            referral_code: `CR-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+            referred_by: null,
+            avatar_url: null,
+            nickname: newMemberForm.nickname || null,
+            game_stats: { wins: 0, attended: 0 },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        };
+        setMembers(prev => [...prev, newMember]);
+        setAddMemberModalOpen(false);
+        setNewMemberForm({ full_name: '', phone: '', email: '', nickname: '', gender: 'male' });
+        toast.success('تم إضافة العضو بنجاح');
+    };
+
+    // فتح تعديل عضو
+    const handleOpenEditMember = (member: UserType) => {
+        setSelectedMember(member);
+        setEditMemberForm({
+            full_name: member.full_name,
+            phone: member.phone,
+            email: member.email || '',
+            nickname: member.nickname || ''
+        });
+        setEditMemberModalOpen(true);
+    };
+
+    // حفظ تعديل عضو
+    const handleSaveEditMember = () => {
+        if (!selectedMember || !editMemberForm.full_name || !editMemberForm.phone) {
+            toast.error('يرجى إدخال الاسم ورقم الهاتف');
+            return;
+        }
+        setMembers(prev => prev.map(m =>
+            m.id === selectedMember.id ? {
+                ...m,
+                full_name: editMemberForm.full_name,
+                phone: editMemberForm.phone,
+                email: editMemberForm.email || null,
+                nickname: editMemberForm.nickname || null,
+                updated_at: new Date().toISOString()
+            } : m
+        ));
+        setEditMemberModalOpen(false);
+        setSelectedMember(null);
+        toast.success('تم تعديل بيانات العضو بنجاح');
+    };
+
+    // فتح آخر الزيارات
+    const handleOpenLastVisits = (member: UserType) => {
+        setSelectedMember(member);
+        setLastVisitsModalOpen(true);
+    };
+
+    // الحصول على زيارات العضو
+    const getMemberVisits = (memberId: string) => {
+        return mockVisitHistory.filter(v => v.memberId === memberId).slice(0, 10);
+    };
+
     const handleDeleteMember = (memberId: string) => {
         // في الواقع سيكون soft delete
         if (confirm('متأكد إنك عايز تحذف العضو ده؟')) {
@@ -228,21 +364,79 @@ export default function MembersPage() {
             </div>
 
             {/* شريط الأدوات */}
-            <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="ابحث بالاسم، الهاتف، أو الإيميل..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="glass-input pr-10"
-                    />
+            <div className="flex flex-col gap-4">
+                <div className="flex flex-col md:flex-row gap-4">
+                    <div className="relative flex-1">
+                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="ابحث بالاسم، الهاتف، أو الإيميل..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="glass-input pr-10"
+                        />
+                    </div>
+                    <Button variant="ghost" className="glass-button" onClick={handleExportCSV}>
+                        <Download className="h-4 w-4 ml-2" />
+                        تصدير CSV
+                    </Button>
+                    <Button className="gradient-button" onClick={() => setAddMemberModalOpen(true)}>
+                        <UserPlus className="h-4 w-4 ml-2" />
+                        إضافة عضو
+                    </Button>
                 </div>
 
-                <Button className="gradient-button" onClick={() => setAddMemberModalOpen(true)}>
-                    <UserPlus className="h-4 w-4 ml-2" />
-                    إضافة عضو
-                </Button>
+                {/* الفلاتر */}
+                <div className="flex flex-wrap gap-2">
+                    {/* فلتر الجنس */}
+                    <select
+                        value={genderFilter}
+                        onChange={(e) => setGenderFilter(e.target.value as 'all' | 'male' | 'female')}
+                        className="glass-input text-sm px-3 py-2 rounded-lg w-auto min-w-[120px]"
+                    >
+                        <option value="all">كل الجنس</option>
+                        <option value="male">ذكر</option>
+                        <option value="female">أنثى</option>
+                    </select>
+
+                    {/* فلتر تاريخ الانضمام */}
+                    <Input
+                        type="date"
+                        value={joinDateFilter}
+                        onChange={(e) => setJoinDateFilter(e.target.value)}
+                        className="glass-input text-sm w-auto"
+                        placeholder="تاريخ الانضمام"
+                    />
+
+                    {/* ترتيب آخر زيارة */}
+                    <select
+                        value={lastVisitSort}
+                        onChange={(e) => { setLastVisitSort(e.target.value as 'newest' | 'oldest' | 'none'); setWalletSort('none'); }}
+                        className="glass-input text-sm px-3 py-2 rounded-lg w-auto min-w-[140px]"
+                    >
+                        <option value="none">آخر زيارة</option>
+                        <option value="newest">الأحدث أولاً</option>
+                        <option value="oldest">الأقدم أولاً</option>
+                    </select>
+
+                    {/* ترتيب رصيد المحفظة */}
+                    <select
+                        value={walletSort}
+                        onChange={(e) => { setWalletSort(e.target.value as 'highest' | 'lowest' | 'none'); setLastVisitSort('none'); }}
+                        className="glass-input text-sm px-3 py-2 rounded-lg w-auto min-w-[140px]"
+                    >
+                        <option value="none">رصيد المحفظة</option>
+                        <option value="highest">الأعلى أولاً</option>
+                        <option value="lowest">الأقل أولاً</option>
+                    </select>
+
+                    {/* زر مسح الفلاتر */}
+                    {(genderFilter !== 'all' || joinDateFilter || lastVisitSort !== 'none' || walletSort !== 'none') && (
+                        <Button variant="ghost" size="sm" className="glass-button text-xs"
+                            onClick={() => { setGenderFilter('all'); setJoinDateFilter(''); setLastVisitSort('none'); setWalletSort('none'); }}>
+                            مسح الفلاتر
+                        </Button>
+                    )}
+                </div>
             </div>
 
             {/* جدول الأعضاء */}
@@ -309,9 +503,13 @@ export default function MembersPage() {
                                                 <Wallet className="ml-2 h-4 w-4" />
                                                 تعديل المحفظة
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleOpenEditMember(member)}>
                                                 <Edit className="ml-2 h-4 w-4" />
                                                 تعديل البيانات
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleOpenLastVisits(member)}>
+                                                <Clock className="ml-2 h-4 w-4" />
+                                                آخر الزيارات
                                             </DropdownMenuItem>
                                             <DropdownMenuSeparator />
                                             <DropdownMenuItem
@@ -365,6 +563,30 @@ export default function MembersPage() {
                                     <p className="text-sm text-muted-foreground">
                                         عضو منذ {formatArabicDate(selectedMember.created_at)}
                                     </p>
+                                </div>
+                            </div>
+
+                            <Separator className="bg-white/10" />
+
+                            {/* معلومات الاتصال */}
+                            <div>
+                                <h4 className="font-medium mb-3 flex items-center gap-2">
+                                    <User className="h-4 w-4 text-[#F18A21]" />
+                                    معلومات الاتصال
+                                </h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-3 rounded-xl bg-white/5">
+                                        <p className="text-sm text-muted-foreground">الهاتف</p>
+                                        <p className="font-mono" dir="ltr">{formatPhoneNumber(selectedMember.phone)}</p>
+                                    </div>
+                                    <div className="p-3 rounded-xl bg-white/5">
+                                        <p className="text-sm text-muted-foreground">البريد الإلكتروني</p>
+                                        <p className="text-sm">{selectedMember.email || '—'}</p>
+                                    </div>
+                                    <div className="p-3 rounded-xl bg-white/5">
+                                        <p className="text-sm text-muted-foreground">الجنس</p>
+                                        <p className="font-bold">{selectedMember.gender === 'male' ? 'ذكر' : 'أنثى'}</p>
+                                    </div>
                                 </div>
                             </div>
 
@@ -531,19 +753,42 @@ export default function MembersPage() {
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
                             <Label>الاسم الكامل *</Label>
-                            <Input placeholder="أحمد محمد" className="glass-input" />
+                            <Input placeholder="أحمد محمد" className="glass-input"
+                                value={newMemberForm.full_name}
+                                onChange={(e) => setNewMemberForm({ ...newMemberForm, full_name: e.target.value })} />
                         </div>
                         <div className="space-y-2">
                             <Label>رقم الهاتف *</Label>
-                            <Input placeholder="01XXXXXXXXX" className="glass-input" dir="ltr" />
+                            <Input placeholder="01XXXXXXXXX" className="glass-input" dir="ltr"
+                                value={newMemberForm.phone}
+                                onChange={(e) => setNewMemberForm({ ...newMemberForm, phone: e.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>الجنس *</Label>
+                            <div className="flex gap-2">
+                                <Button variant="ghost"
+                                    className={`flex-1 ${newMemberForm.gender === 'male' ? 'bg-[#F18A21]/20 border-[#F18A21]' : 'glass-button'}`}
+                                    onClick={() => setNewMemberForm({ ...newMemberForm, gender: 'male' })}>
+                                    ذكر
+                                </Button>
+                                <Button variant="ghost"
+                                    className={`flex-1 ${newMemberForm.gender === 'female' ? 'bg-[#F18A21]/20 border-[#F18A21]' : 'glass-button'}`}
+                                    onClick={() => setNewMemberForm({ ...newMemberForm, gender: 'female' })}>
+                                    أنثى
+                                </Button>
+                            </div>
                         </div>
                         <div className="space-y-2">
                             <Label>البريد الإلكتروني</Label>
-                            <Input placeholder="email@example.com" className="glass-input" dir="ltr" />
+                            <Input placeholder="email@example.com" className="glass-input" dir="ltr"
+                                value={newMemberForm.email}
+                                onChange={(e) => setNewMemberForm({ ...newMemberForm, email: e.target.value })} />
                         </div>
                         <div className="space-y-2">
                             <Label>اسم اللعب (Nickname)</Label>
-                            <Input placeholder="الفهد" className="glass-input" />
+                            <Input placeholder="الفهد" className="glass-input"
+                                value={newMemberForm.nickname}
+                                onChange={(e) => setNewMemberForm({ ...newMemberForm, nickname: e.target.value })} />
                         </div>
                     </div>
 
@@ -551,9 +796,98 @@ export default function MembersPage() {
                         <Button variant="ghost" className="glass-button" onClick={() => setAddMemberModalOpen(false)}>
                             إلغاء
                         </Button>
-                        <Button className="gradient-button">
+                        <Button className="gradient-button" onClick={handleAddMember}>
                             <UserPlus className="h-4 w-4 ml-2" />
                             إضافة العضو
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* نافذة تعديل عضو */}
+            <Dialog open={editMemberModalOpen} onOpenChange={setEditMemberModalOpen}>
+                <DialogContent className="glass-modal sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="gradient-text text-xl">تعديل بيانات العضو</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label>الاسم الكامل *</Label>
+                            <Input className="glass-input"
+                                value={editMemberForm.full_name}
+                                onChange={(e) => setEditMemberForm({ ...editMemberForm, full_name: e.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>رقم الهاتف *</Label>
+                            <Input className="glass-input" dir="ltr"
+                                value={editMemberForm.phone}
+                                onChange={(e) => setEditMemberForm({ ...editMemberForm, phone: e.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>البريد الإلكتروني</Label>
+                            <Input className="glass-input" dir="ltr"
+                                value={editMemberForm.email}
+                                onChange={(e) => setEditMemberForm({ ...editMemberForm, email: e.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>اسم اللعب (Nickname)</Label>
+                            <Input className="glass-input"
+                                value={editMemberForm.nickname}
+                                onChange={(e) => setEditMemberForm({ ...editMemberForm, nickname: e.target.value })} />
+                        </div>
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                        <Button variant="ghost" className="glass-button" onClick={() => setEditMemberModalOpen(false)}>
+                            إلغاء
+                        </Button>
+                        <Button className="gradient-button" onClick={handleSaveEditMember}>
+                            حفظ التعديلات
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* نافذة آخر الزيارات */}
+            <Dialog open={lastVisitsModalOpen} onOpenChange={setLastVisitsModalOpen}>
+                <DialogContent className="glass-modal sm:max-w-lg max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="gradient-text text-xl">آخر الزيارات - {selectedMember?.full_name}</DialogTitle>
+                    </DialogHeader>
+
+                    {selectedMember && (
+                        <div className="py-4">
+                            {getMemberVisits(selectedMember.id).length === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground">لا توجد زيارات سابقة</div>
+                            ) : (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow className="border-white/10">
+                                            <TableHead className="text-right">التاريخ</TableHead>
+                                            <TableHead className="text-right">الوقت</TableHead>
+                                            <TableHead className="text-right">الطاولة</TableHead>
+                                            <TableHead className="text-right">الإجمالي</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {getMemberVisits(selectedMember.id).map((visit) => (
+                                            <TableRow key={visit.id} className="border-white/5">
+                                                <TableCell>{visit.date}</TableCell>
+                                                <TableCell>{visit.startTime} - {visit.endTime}</TableCell>
+                                                <TableCell>{visit.tableName}</TableCell>
+                                                <TableCell className="font-bold">{formatCurrency(visit.totalCost)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            )}
+                        </div>
+                    )}
+
+                    <DialogFooter>
+                        <Button variant="ghost" className="glass-button" onClick={() => setLastVisitsModalOpen(false)}>
+                            إغلاق
                         </Button>
                     </DialogFooter>
                 </DialogContent>

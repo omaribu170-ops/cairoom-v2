@@ -5,6 +5,7 @@
 
 // ========================= مستخدمين Users =========================
 export type UserRole = 'super_admin' | 'moderator' | 'user';
+export type UserGender = 'male' | 'female';
 
 export interface GameStats {
   wins: number;
@@ -16,6 +17,7 @@ export interface User {
   full_name: string;
   phone: string;
   email: string | null;
+  gender: UserGender;
   role: UserRole;
   cairoom_wallet_balance: number;
   affiliate_balance: number;

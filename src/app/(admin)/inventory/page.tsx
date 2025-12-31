@@ -109,6 +109,7 @@ export default function InventoryPage() {
         cost_price: 0,
         stock_quantity: 0,
         is_active: true,
+        image_url: '' as string,
     });
 
     // تصفية المنتجات
@@ -135,6 +136,7 @@ export default function InventoryPage() {
             cost_price: 0,
             stock_quantity: 0,
             is_active: true,
+            image_url: '',
         });
         setProductModalOpen(true);
     };
@@ -148,6 +150,7 @@ export default function InventoryPage() {
             cost_price: product.cost_price,
             stock_quantity: product.stock_quantity,
             is_active: product.is_active,
+            image_url: product.image_url || '',
         });
         setProductModalOpen(true);
     };
@@ -418,6 +421,22 @@ export default function InventoryPage() {
                                 onChange={(e) => setFormData({ ...formData, stock_quantity: parseInt(e.target.value) || 0 })}
                                 className="glass-input"
                             />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>صورة المنتج (رابط URL)</Label>
+                            <Input
+                                placeholder="https://example.com/image.jpg"
+                                value={formData.image_url}
+                                onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                                className="glass-input"
+                                dir="ltr"
+                            />
+                            {formData.image_url && (
+                                <div className="mt-2 p-2 rounded-lg bg-white/5 flex justify-center">
+                                    <img src={formData.image_url} alt="معاينة" className="max-h-20 rounded" onError={(e) => e.currentTarget.style.display = 'none'} />
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5">
