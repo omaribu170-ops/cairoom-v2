@@ -199,6 +199,34 @@ const formatDuration = (minutes: number) => {
     return `${hours}:${mins.toString().padStart(2, '0')}`;
 };
 
+// تحويل الوقت للنظام العربي 12 ساعة (ص/م)
+const formatArabicTime = (timeString: string) => {
+    // Handle both ISO date strings and "HH:MM" time strings
+    let hours: number, minutes: number;
+    if (timeString.includes('T')) {
+        const date = new Date(timeString);
+        hours = date.getHours();
+        minutes = date.getMinutes();
+    } else {
+        const parts = timeString.split(':');
+        hours = parseInt(parts[0]);
+        minutes = parseInt(parts[1]);
+    }
+    const period = hours >= 12 ? 'م' : 'ص';
+    hours = hours % 12 || 12;
+    return `${hours}:${minutes.toString().padStart(2, '0')}${period}`;
+};
+
+// تحويل التاريخ للعربية
+const formatArabicDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const arabicMonths = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+    const day = date.getDate();
+    const month = arabicMonths[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day} ${month} ${year}`;
+};
+
 const calculateTimeCost = (minutes: number, pricePerHour: number) => {
     return Math.ceil((minutes / 60) * pricePerHour);
 };
@@ -1143,50 +1171,71 @@ export default function SessionsPage() {
 
             {/* نافذة الفاتورة */}
             <Dialog open={!!receiptModal} onOpenChange={() => setReceiptModal(null)}>
-                <DialogContent className="glass-modal sm:max-w-lg">
+                <DialogContent className="glass-modal sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader><DialogTitle className="gradient-text text-xl">فاتورة الجلسة</DialogTitle></DialogHeader>
                     {receiptModal && (
                         <div className="space-y-4 py-4">
+                            {/* معلومات الجلسة الأساسية */}
                             <div className="glass-card p-4 space-y-2 text-sm">
                                 <div className="flex justify-between"><span className="text-muted-foreground">رقم الجلسة</span><span className="font-mono">{receiptModal.id}</span></div>
-                                <div className="flex justify-between"><span className="text-muted-foreground">التاريخ</span><span>{receiptModal.date}</span></div>
-                                <div className="flex justify-between"><span className="text-muted-foreground">الوقت</span><span>{receiptModal.startTime} - {receiptModal.endTime}</span></div>
+                                <div className="flex justify-between"><span className="text-muted-foreground">التاريخ</span><span>{formatArabicDate(receiptModal.date)}</span></div>
+                                <div className="flex justify-between"><span className="text-muted-foreground">الوقت</span><span>{formatArabicTime(receiptModal.startTime)} - {formatArabicTime(receiptModal.endTime)}</span></div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-muted-foreground">الطاولات</span>
+                                    <div className="flex flex-wrap gap-1 justify-end">
+                                        {receiptModal.tablesUsed.map((t, i) => (
+                                            <Badge key={i} variant="outline" className="text-xs">{t}</Badge>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
-                            {/* الطاولات المستخدمة */}
-                            <div className="glass-card p-4">
-                                <p className="text-sm font-medium mb-2">الطاولات المستخدمة</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {receiptModal.tablesUsed.map((t, i) => (
-                                        <Badge key={i} variant="outline" className="text-xs">{t}</Badge>
+
+                            {/* بطاقات الأعضاء */}
+                            <div className="space-y-2">
+                                <Label className="text-sm">الأعضاء</Label>
+                                <div className="flex gap-3 overflow-x-auto pb-2" style={{ direction: 'rtl' }}>
+                                    {receiptModal.members.map((member, i) => (
+                                        <div key={i} className="glass-card p-3 min-w-[200px] flex-shrink-0">
+                                            <div className="flex justify-between items-start">
+                                                <div className="text-right">
+                                                    <p className="font-bold text-sm">{member.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{member.phone || 'بدون رقم'}</p>
+                                                    {member.orders.length > 0 && (
+                                                        <div className="mt-2 text-xs text-muted-foreground">
+                                                            {member.orders.map((o, j) => (
+                                                                <div key={j}>{o.name} × {o.quantity}</div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="text-left text-xs">
+                                                    <p className="text-muted-foreground">{formatArabicTime(receiptModal.startTime)} - {formatArabicTime(receiptModal.endTime)}</p>
+                                                    <p className="text-muted-foreground mt-1">طلبات: {formatCurrency(member.orders.reduce((sum, o) => sum + o.price * o.quantity, 0))}</p>
+                                                </div>
+                                            </div>
+                                        </div>
                                     ))}
                                 </div>
                             </div>
-                            <div className="space-y-3">
-                                <p className="font-medium">الأعضاء</p>
-                                {receiptModal.members.map((member, i) => (
-                                    <div key={i} className="glass-card p-3 space-y-2">
-                                        <div className="flex items-center gap-2">
-                                            <Avatar className="h-8 w-8"><AvatarFallback className="bg-gradient-to-br from-[#E63E32] to-[#F8C033] text-white text-xs">{member.name.charAt(0)}</AvatarFallback></Avatar>
-                                            <span className="font-medium">{member.name}</span>
-                                        </div>
-                                        {member.orders.length > 0 && (
-                                            <div className="text-xs text-muted-foreground mr-10">
-                                                {member.orders.map((o, j) => <span key={j}>{o.name} × {o.quantity}</span>)}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
+
+                            {/* إجماليات الجلسة */}
                             <div className="glass-card p-4 space-y-2">
-                                <div className="flex justify-between text-sm"><span>تكلفة الوقت</span><span>{formatCurrency(receiptModal.totalTimeCost)}</span></div>
-                                <div className="flex justify-between text-sm"><span>تكلفة الطلبات</span><span>{formatCurrency(receiptModal.totalOrdersCost)}</span></div>
+                                <div className="flex justify-between text-sm"><span>إجمالي الطلبات</span><span>{formatCurrency(receiptModal.totalOrdersCost)}</span></div>
+                                <div className="flex justify-between text-sm"><span>إجمالي الوقت</span><span>{formatCurrency(receiptModal.totalTimeCost)}</span></div>
                                 <div className="border-t border-white/10 pt-2 flex justify-between font-bold">
-                                    <span>الإجمالي</span><span className="gradient-text text-lg">{formatCurrency(receiptModal.grandTotal)}</span>
+                                    <span>الإجمالي الكلي</span><span className="gradient-text text-lg">{formatCurrency(receiptModal.grandTotal)}</span>
                                 </div>
                             </div>
                         </div>
                     )}
-                    <DialogFooter><Button variant="ghost" className="glass-button" onClick={() => setReceiptModal(null)}>إغلاق</Button></DialogFooter>
+                    <DialogFooter className="gap-2">
+                        <Button variant="ghost" className="glass-button" onClick={() => setReceiptModal(null)}>إغلاق</Button>
+                        <Button className="gradient-button" onClick={() => {
+                            // PDF download placeholder - would use jspdf in production
+                            toast.success('جاري تحميل الفاتورة...');
+                            setTimeout(() => toast.success('تم تحميل الفاتورة بنجاح'), 1000);
+                        }}>تحميل الفاتورة</Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
