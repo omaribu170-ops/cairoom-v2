@@ -16,7 +16,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { formatCurrency, formatArabicDate, cn } from '@/lib/utils';
-import { ClipboardCheck, Package, Check, X, Clock, AlertTriangle, Plus } from 'lucide-react';
+import { ClipboardCheck, Package, Check, X, Clock, AlertTriangle, Plus, Calendar as CalendarIcon, Filter } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 
 // Cleaning time slots
 const timeSlots = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'];
@@ -31,22 +33,90 @@ const mockCleaning: Record<string, Record<string, 'checked' | 'missed' | 'pendin
 };
 
 // Mock staff requests
+// Mock staff requests
 const mockRequests = [
-    { id: '1', requester: 'محمد أحمد', items: 'مناديل + منظف زجاج', estimated_cost: 150, status: 'pending' as const, date: '2024-12-29' },
-    { id: '2', requester: 'علي حسن', items: 'قهوة + شاي', estimated_cost: 200, status: 'fulfilled' as const, date: '2024-12-28' },
-    { id: '3', requester: 'محمد أحمد', items: 'أكياس قمامة', estimated_cost: 50, status: 'rejected' as const, date: '2024-12-27' },
+    { id: '1', requester: 'محمد أحمد', items: 'مناديل + منظف زجاج', estimated_cost: 150, status: 'pending' as const, date: new Date().toISOString() }, // اليوم
+    { id: '2', requester: 'علي حسن', items: 'قهوة + شاي', estimated_cost: 200, status: 'fulfilled' as const, date: new Date(Date.now() - 86400000).toISOString() }, // أمس
+    { id: '3', requester: 'محمد أحمد', items: 'أكياس قمامة', estimated_cost: 50, status: 'rejected' as const, date: new Date(Date.now() - 172800000).toISOString() }, // أول أمس
+    { id: '4', requester: 'سارة محمود', items: 'صابون سائل', estimated_cost: 80, status: 'fulfilled' as const, date: new Date(Date.now() - 604800000).toISOString() }, // الأسبوع الماضي
 ];
+
+type TimeFilter = 'daily' | 'weekly' | 'monthly' | 'semiannual' | 'annual';
+
+const filterLabels: Record<TimeFilter, string> = {
+    daily: 'اليوم', weekly: 'هذا الأسبوع', monthly: 'هذا الشهر', semiannual: 'نصف سنة', annual: 'هذه السنة'
+};
 
 export default function OperationsPage() {
     const [activeTab, setActiveTab] = useState('cleaning');
-    const [cleaning, setCleaning] = useState(mockCleaning);
+    const [cleaningStartTime, setCleaningStartTime] = useState('10:00');
+    // Using simple mock structure for demo, in real app this would be fetched based on date
+    const [cleaningData, setCleaningData] = useState<Record<string, Record<string, Record<string, 'checked' | 'missed' | 'pending'>>>>({
+        [new Date().toLocaleDateString('en-CA')]: mockCleaning
+    });
     const [requests, setRequests] = useState(mockRequests);
     const [requestModalOpen, setRequestModalOpen] = useState(false);
 
+    // Filters
+    const [cleaningFilter, setCleaningFilter] = useState<TimeFilter>('daily');
+    const [requestFilterTime, setRequestFilterTime] = useState<TimeFilter>('daily');
+    const [requestFilterStatus, setRequestFilterStatus] = useState<'all' | 'pending' | 'fulfilled' | 'rejected'>('all');
+
+    // Generate dynamic time slots based on start time (12 hours shift)
+    const generateTimeSlots = (start: string) => {
+        const slots = [];
+        const [startH] = start.split(':').map(Number);
+        for (let i = 0; i < 13; i++) {
+            const h = (startH + i) % 24;
+            slots.push(`${h.toString().padStart(2, '0')}:00`);
+        }
+        return slots;
+    };
+
+    const currentSlots = generateTimeSlots(cleaningStartTime);
+    const todayKey = new Date().toLocaleDateString('en-CA');
+
+    // Real-time check logic
+    const isSlotEditable = (slotTime: string) => {
+        const now = new Date();
+        const [slotH] = slotTime.split(':').map(Number);
+        const currentH = now.getHours();
+
+        // If slot is in future (next hour or later), disable
+        if (slotH > currentH) return false;
+
+        // If slot is past (current hour is greater than slot hour), and it wasn't checked, it's missed
+        // But for "editing", we allow checking current hour.
+        // The requirement: "if in specific hour no check it cannot be checked if the time pass"
+        if (currentH > slotH) return false;
+
+        return true;
+    };
+
+    const getSlotStatus = (dateKey: string, slot: string, area: string) => {
+        // If data exists, return it
+        if (cleaningData[dateKey]?.[slot]?.[area]) return cleaningData[dateKey][slot][area];
+
+        // If no data, check if it's past
+        if (dateKey === todayKey) {
+            const now = new Date();
+            const [slotH] = slot.split(':').map(Number);
+            const currentH = now.getHours();
+            if (currentH > slotH) return 'missed'; // Auto-mark missed if time passed
+        } else if (new Date(dateKey) < new Date(todayKey)) {
+            return 'missed'; // All past days unchecked are missed
+        }
+
+        return 'pending';
+    };
+
     const handleCheckCleaning = (slot: string, area: string) => {
-        setCleaning(prev => ({
+        setCleaningData(prev => ({
             ...prev,
-            [slot]: { ...prev[slot], [area]: 'checked' }
+            [todayKey]: {
+                ...prev[todayKey],
+                [slot]: { ...prev[todayKey]?.[slot], [area]: 'checked' }
+            }
         }));
         toast.success('تم تسجيل النظافة');
     };
@@ -61,10 +131,40 @@ export default function OperationsPage() {
         toast.success('تم رفض الطلب');
     };
 
+    // Filtering Logic for Requests
+    const filteredRequests = requests.filter(r => {
+        const date = new Date(r.date);
+        const now = new Date();
+        let passTime = false;
+
+        switch (requestFilterTime) {
+            case 'daily': passTime = date.toDateString() === now.toDateString(); break;
+            case 'weekly': {
+                const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
+                passTime = date >= weekAgo; break;
+            }
+            case 'monthly': {
+                const monthAgo = new Date(now); monthAgo.setMonth(now.getMonth() - 1);
+                passTime = date >= monthAgo; break;
+            }
+            case 'semiannual': {
+                const sixMonthsAgo = new Date(now); sixMonthsAgo.setMonth(now.getMonth() - 6);
+                passTime = date >= sixMonthsAgo; break;
+            }
+            case 'annual': {
+                const yearAgo = new Date(now); yearAgo.setFullYear(now.getFullYear() - 1);
+                passTime = date >= yearAgo; break;
+            }
+        }
+
+        const passStatus = requestFilterStatus === 'all' || r.status === requestFilterStatus;
+        return passTime && passStatus;
+    });
+
     const stats = {
-        checked: Object.values(cleaning).flatMap(s => Object.values(s)).filter(s => s === 'checked').length,
-        missed: Object.values(cleaning).flatMap(s => Object.values(s)).filter(s => s === 'missed').length,
-        pending: Object.values(cleaning).flatMap(s => Object.values(s)).filter(s => s === 'pending').length,
+        checked: Object.values(cleaningData[todayKey] || {}).flatMap(s => Object.values(s)).filter(s => s === 'checked').length,
+        missed: 0, // Calculated dynamically in render for simplicity of this demo
+        pending: 0,
         pendingRequests: requests.filter(r => r.status === 'pending').length,
     };
 
@@ -88,6 +188,21 @@ export default function OperationsPage() {
 
                 <TabsContent value="cleaning">
                     <Card className="glass-card overflow-x-auto">
+                        <div className="p-4 border-b border-white/10 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-2">
+                                <Label>وقت بداية اليوم:</Label>
+                                <Input
+                                    type="time"
+                                    value={cleaningStartTime}
+                                    onChange={(e) => setCleaningStartTime(e.target.value)}
+                                    className="glass-input w-32 h-9"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-yellow-500/10 px-3 py-1 rounded-full border border-yellow-500/20">
+                                <AlertTriangle className="h-3 w-3" />
+                                يتم إغلاق الخانات تلقائياً بعد مرور الوقت
+                            </div>
+                        </div>
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-white/10">
@@ -96,18 +211,25 @@ export default function OperationsPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {timeSlots.map(slot => (
+                                {currentSlots.map(slot => (
                                     <tr key={slot} className="border-b border-white/5 hover:bg-white/5">
                                         <td className="p-3 font-mono font-medium">{slot}</td>
                                         {areas.map(area => {
-                                            const status = cleaning[slot]?.[area] || 'pending';
+                                            const status = getSlotStatus(todayKey, slot, area);
+                                            const editable = isSlotEditable(slot);
                                             return (
                                                 <td key={area} className="p-3 text-center">
                                                     {status === 'checked' && <Badge className="status-available"><Check className="h-3 w-3 mr-1" />تم</Badge>}
                                                     {status === 'missed' && <Badge className="status-busy"><X className="h-3 w-3 mr-1" />فات</Badge>}
                                                     {status === 'pending' && (
-                                                        <Button size="sm" variant="ghost" className="glass-button" onClick={() => handleCheckCleaning(slot, area)}>
-                                                            <Clock className="h-3 w-3 mr-1" />شيك
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="glass-button"
+                                                            onClick={() => handleCheckCleaning(slot, area)}
+                                                            disabled={!editable}
+                                                        >
+                                                            {editable ? <><Clock className="h-3 w-3 mr-1" />شيك</> : '-'}
                                                         </Button>
                                                     )}
                                                 </td>
@@ -118,33 +240,91 @@ export default function OperationsPage() {
                             </tbody>
                         </table>
                     </Card>
+
+                    {/* سجل النظافة */}
+                    <div className="mt-8">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-lg flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-muted-foreground" />سجل النظافة</h3>
+                            <div className="bg-white/5 p-1 rounded-lg flex text-xs">
+                                {(['daily', 'weekly', 'monthly'] as const).map(f => (
+                                    <button
+                                        key={f}
+                                        onClick={() => setCleaningFilter(f)}
+                                        className={cn("px-3 py-1.5 rounded-md transition-colors", cleaningFilter === f ? "bg-primary text-primary-foreground" : "hover:bg-white/5")}
+                                    >
+                                        {filterLabels[f]}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <Card className="glass-card p-6 text-center text-muted-foreground">
+                            يظهر هنا ملخص الالتزام بالنظافة ({filterLabels[cleaningFilter]})
+                            {/* يمكن إضافة رسوم بيانية أو جداول إحصائية هنا مستقبلاً */}
+                        </Card>
+                    </div>
                 </TabsContent>
 
                 <TabsContent value="requests" className="space-y-4">
-                    <div className="flex justify-end">
-                        <Button className="gradient-button" onClick={() => setRequestModalOpen(true)}><Plus className="h-4 w-4 ml-2" />طلب جديد</Button>
-                    </div>
-                    {requests.map(request => (
-                        <Card key={request.id} className={cn('glass-card p-4', request.status === 'pending' && 'border-yellow-500/30')}>
-                            <div className="flex items-start justify-between gap-4">
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <h3 className="font-medium">{request.items}</h3>
-                                        <Badge className={cn('border', request.status === 'pending' ? 'status-pending' : request.status === 'fulfilled' ? 'status-available' : 'status-busy')}>
-                                            {request.status === 'pending' ? 'منتظر' : request.status === 'fulfilled' ? 'تم' : 'مرفوض'}
-                                        </Badge>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground">{request.requester} • {formatArabicDate(request.date)} • {formatCurrency(request.estimated_cost)}</p>
-                                </div>
-                                {request.status === 'pending' && (
-                                    <div className="flex gap-2">
-                                        <Button size="sm" className="gradient-button" onClick={() => handleApproveRequest(request.id)}><Check className="h-4 w-4" /></Button>
-                                        <Button size="sm" variant="ghost" className="glass-button text-red-400" onClick={() => handleRejectRequest(request.id)}><X className="h-4 w-4" /></Button>
-                                    </div>
-                                )}
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <div className="flex-1 flex gap-2">
+                            <div className="w-full md:w-48">
+                                <Label className="text-xs mb-1.5 block">الفترة</Label>
+                                <select
+                                    value={requestFilterTime}
+                                    onChange={(e) => setRequestFilterTime(e.target.value as TimeFilter)}
+                                    className="w-full h-9 glass-input rounded-md px-3 text-sm"
+                                >
+                                    {Object.entries(filterLabels).map(([key, label]) => (
+                                        <option key={key} value={key}>{label}</option>
+                                    ))}
+                                </select>
                             </div>
-                        </Card>
-                    ))}
+                            <div className="w-full md:w-48">
+                                <Label className="text-xs mb-1.5 block">الحالة</Label>
+                                <select
+                                    value={requestFilterStatus}
+                                    onChange={(e) => setRequestFilterStatus(e.target.value as any)}
+                                    className="w-full h-9 glass-input rounded-md px-3 text-sm"
+                                >
+                                    <option value="all">الكل</option>
+                                    <option value="pending">منتظر</option>
+                                    <option value="fulfilled">مقبول</option>
+                                    <option value="rejected">مرفوض</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex items-end">
+                            <Button className="gradient-button" onClick={() => setRequestModalOpen(true)}><Plus className="h-4 w-4 ml-2" />طلب جديد</Button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        {filteredRequests.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground">لا توجد طلبات في هذه الفترة</div>
+                        ) : (
+                            filteredRequests.map(request => (
+                                <Card key={request.id} className={cn('glass-card p-4 transition-all', request.status === 'pending' && 'border-yellow-500/30 shadow-[0_0_15px_-5px_var(--tw-shadow-color)] shadow-yellow-500/20')}>
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <h3 className="font-medium">{request.items}</h3>
+                                                <Badge className={cn('border', request.status === 'pending' ? 'status-pending' : request.status === 'fulfilled' ? 'status-available' : 'status-busy')}>
+                                                    {request.status === 'pending' ? 'منتظر' : request.status === 'fulfilled' ? 'تم' : 'مرفوض'}
+                                                </Badge>
+                                            </div>
+                                            <p className="text-sm text-muted-foreground">{request.requester} • {formatArabicDate(request.date)} • {formatCurrency(request.estimated_cost)}</p>
+                                        </div>
+                                        {request.status === 'pending' && (
+                                            <div className="flex gap-2">
+                                                <Button size="sm" className="gradient-button" onClick={() => handleApproveRequest(request.id)}><Check className="h-4 w-4" /></Button>
+                                                <Button size="sm" variant="ghost" className="glass-button text-red-400" onClick={() => handleRejectRequest(request.id)}><X className="h-4 w-4" /></Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </Card>
+                            ))
+                        )}
+                    </div>
                 </TabsContent>
             </Tabs>
 
@@ -158,6 +338,6 @@ export default function OperationsPage() {
                     <DialogFooter><Button variant="ghost" className="glass-button" onClick={() => setRequestModalOpen(false)}>إلغاء</Button><Button className="gradient-button">إرسال الطلب</Button></DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 }
