@@ -39,7 +39,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { formatArabicDate, formatArabicDateTime, cn } from '@/lib/utils';
+import { formatCurrency, formatArabicDate, formatArabicDateTime, cn } from '@/lib/utils';
 import {
     Search,
     Plus,
@@ -189,8 +189,24 @@ export default function StaffPage() {
     const [staff, setStaff] = useState(mockStaff);
     const [tasks, setTasks] = useState(mockTasks);
     const [searchQuery, setSearchQuery] = useState('');
-    const [staffModalOpen, setStaffModalOpen] = useState(false);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
+
+    // حالة نموذج الموظف
+    const [staffModalOpen, setStaffModalOpen] = useState(false);
+    const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
+    const [staffFormData, setStaffFormData] = useState({
+        full_name: '',
+        phone: '',
+        address: '',
+        shift_start: '',
+        shift_end: '',
+        salary: '',
+        is_active: true
+    });
+
+    // حالة فلاتر المهام
+    const [taskFilterStatus, setTaskFilterStatus] = useState<'all' | 'pending' | 'overdue' | 'done'>('all');
+    const [taskFilterEmployee, setTaskFilterEmployee] = useState<string>('all');
 
     // حالة المهمة الجديدة
     const [newTask, setNewTask] = useState({
@@ -207,10 +223,13 @@ export default function StaffPage() {
     );
 
     // تصفية المهام
-    const filteredTasks = tasks.filter((t) =>
-        t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.assignee.full_name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredTasks = tasks.filter((t) => {
+        const matchesSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            t.assignee.full_name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesStatus = taskFilterStatus === 'all' || t.status === taskFilterStatus;
+        const matchesEmployee = taskFilterEmployee === 'all' || t.assigned_to === taskFilterEmployee;
+        return matchesSearch && matchesStatus && matchesEmployee;
+    });
 
     // إحصائيات
     const staffStats = {
@@ -256,6 +275,85 @@ export default function StaffPage() {
         toast.success('تم إضافة المهمة');
         setTaskModalOpen(false);
         setNewTask({ title: '', description: '', assigned_to: '', deadline: '' });
+    };
+
+    const handleSaveStaff = () => {
+        if (!staffFormData.full_name || !staffFormData.phone) {
+            toast.error('يرجى إدخال البيانات الأساسية');
+            return;
+        }
+
+        if (editingStaffId) {
+            // تحديث موظف حالي
+            setStaff(prev => prev.map(s => {
+                if (s.id === editingStaffId) {
+                    return {
+                        ...s,
+                        shift_start: staffFormData.shift_start,
+                        shift_end: staffFormData.shift_end,
+                        address: staffFormData.address,
+                        salary: Number(staffFormData.salary) || 0,
+                        is_active: staffFormData.is_active,
+                        user: {
+                            ...s.user,
+                            full_name: staffFormData.full_name,
+                            phone: staffFormData.phone
+                        }
+                    };
+                }
+                return s;
+            }));
+            toast.success('تم تحديث بيانات الموظف');
+        } else {
+            // إضافة موظف جديد
+            const newStaffMember: MockStaffMember = {
+                id: `staff-${Date.now()}`,
+                user_id: `u-${Date.now()}`,
+                shift_start: staffFormData.shift_start || '09:00',
+                shift_end: staffFormData.shift_end || '17:00',
+                address: staffFormData.address,
+                salary: Number(staffFormData.salary) || 0,
+                is_active: staffFormData.is_active,
+                national_id_image: null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                user: {
+                    full_name: staffFormData.full_name,
+                    phone: staffFormData.phone
+                }
+            };
+            setStaff(prev => [newStaffMember, ...prev]);
+            toast.success('تم إضافة الموظف بنجاح');
+        }
+        setStaffModalOpen(false);
+        resetStaffForm();
+    };
+
+    const handleEditStaff = (member: MockStaffMember) => {
+        setEditingStaffId(member.id);
+        setStaffFormData({
+            full_name: member.user.full_name,
+            phone: member.user.phone,
+            address: member.address || '',
+            shift_start: member.shift_start,
+            shift_end: member.shift_end,
+            salary: member.salary.toString(),
+            is_active: member.is_active
+        });
+        setStaffModalOpen(true);
+    };
+
+    const resetStaffForm = () => {
+        setEditingStaffId(null);
+        setStaffFormData({
+            full_name: '',
+            phone: '',
+            address: '',
+            shift_start: '',
+            shift_end: '',
+            salary: '',
+            is_active: true
+        });
     };
 
     return (
@@ -316,6 +414,7 @@ export default function StaffPage() {
                                     <TableHead className="text-right">الموظف</TableHead>
                                     <TableHead className="text-right">الهاتف</TableHead>
                                     <TableHead className="text-right">الشيفت</TableHead>
+                                    <TableHead className="text-right">الراتب</TableHead>
                                     <TableHead className="text-right">العنوان</TableHead>
                                     <TableHead className="text-right">الحالة</TableHead>
                                     <TableHead className="text-right w-[80px]">إجراءات</TableHead>
@@ -340,6 +439,9 @@ export default function StaffPage() {
                                         <TableCell>
                                             {member.shift_start} - {member.shift_end}
                                         </TableCell>
+                                        <TableCell>
+                                            {formatCurrency(member.salary)}
+                                        </TableCell>
                                         <TableCell className="text-muted-foreground">
                                             {member.address || '—'}
                                         </TableCell>
@@ -361,7 +463,7 @@ export default function StaffPage() {
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end" className="glass-modal">
-                                                    <DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleEditStaff(member)}>
                                                         <Edit className="ml-2 h-4 w-4" />
                                                         تعديل
                                                     </DropdownMenuItem>
@@ -419,6 +521,45 @@ export default function StaffPage() {
                         </Card>
                     </div>
 
+                    {/* فلاتر المهام */}
+                    <div className="flex flex-col md:flex-row gap-4 glass-card p-4">
+                        <div className="flex-1">
+                            <Label className="text-xs mb-1.5 block">بحث</Label>
+                            <Input
+                                placeholder="بحث في المهام..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="glass-input h-9"
+                            />
+                        </div>
+                        <div className="w-full md:w-48">
+                            <Label className="text-xs mb-1.5 block">الحالة</Label>
+                            <select
+                                value={taskFilterStatus}
+                                onChange={(e) => setTaskFilterStatus(e.target.value as any)}
+                                className="w-full h-9 glass-input rounded-md px-3 text-sm"
+                            >
+                                <option value="all">الكل</option>
+                                <option value="pending">قيد الانتظار</option>
+                                <option value="overdue">متأخرة</option>
+                                <option value="done">مكتملة</option>
+                            </select>
+                        </div>
+                        <div className="w-full md:w-48">
+                            <Label className="text-xs mb-1.5 block">الموظف</Label>
+                            <select
+                                value={taskFilterEmployee}
+                                onChange={(e) => setTaskFilterEmployee(e.target.value)}
+                                className="w-full h-9 glass-input rounded-md px-3 text-sm"
+                            >
+                                <option value="all">كل الموظفين</option>
+                                {staff.map(s => (
+                                    <option key={s.user_id} value={s.user_id}>{s.user.full_name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
                     {/* قائمة المهام */}
                     <div className="space-y-3">
                         {filteredTasks.map((task) => (
@@ -463,10 +604,10 @@ export default function StaffPage() {
                         ))}
                     </div>
                 </TabsContent>
-            </Tabs>
+            </Tabs >
 
             {/* نافذة إضافة مهمة */}
-            <Dialog open={taskModalOpen} onOpenChange={setTaskModalOpen}>
+            < Dialog open={taskModalOpen} onOpenChange={setTaskModalOpen} >
                 <DialogContent className="glass-modal sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle className="gradient-text text-xl">إضافة مهمة جديدة</DialogTitle>
@@ -532,7 +673,101 @@ export default function StaffPage() {
                         </Button>
                     </DialogFooter>
                 </DialogContent>
-            </Dialog>
-        </div>
+            </Dialog >
+
+            {/* نافذة الموظف (إضافة/تعديل) */}
+            < Dialog open={staffModalOpen} onOpenChange={(open) => {
+                setStaffModalOpen(open);
+                if (!open) resetStaffForm();
+            }
+            }>
+                <DialogContent className="glass-modal sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="gradient-text">
+                            {editingStaffId ? 'تعديل بيانات الموظف' : 'إضافة موظف جديد'}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto px-1">
+                        <div className="space-y-2">
+                            <Label>الاسم بالكامل *</Label>
+                            <Input
+                                value={staffFormData.full_name}
+                                onChange={(e) => setStaffFormData({ ...staffFormData, full_name: e.target.value })}
+                                className="glass-input"
+                                placeholder="مثال: أحمد محمد"
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>رقم الهاتف *</Label>
+                                <Input
+                                    value={staffFormData.phone}
+                                    onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })}
+                                    className="glass-input"
+                                    placeholder="01xxxxxxxxx"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>الراتب الشهري</Label>
+                                <Input
+                                    type="number"
+                                    value={staffFormData.salary}
+                                    onChange={(e) => setStaffFormData({ ...staffFormData, salary: e.target.value })}
+                                    className="glass-input"
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>بداية الشيفت</Label>
+                                <Input
+                                    type="time"
+                                    value={staffFormData.shift_start}
+                                    onChange={(e) => setStaffFormData({ ...staffFormData, shift_start: e.target.value })}
+                                    className="glass-input"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>نهاية الشيفت</Label>
+                                <Input
+                                    type="time"
+                                    value={staffFormData.shift_end}
+                                    onChange={(e) => setStaffFormData({ ...staffFormData, shift_end: e.target.value })}
+                                    className="glass-input"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>العنوان</Label>
+                            <Input
+                                value={staffFormData.address}
+                                onChange={(e) => setStaffFormData({ ...staffFormData, address: e.target.value })}
+                                className="glass-input"
+                                placeholder="العنوان بالتفصيل"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2 pt-2">
+                            <input
+                                type="checkbox"
+                                id="is_active"
+                                checked={staffFormData.is_active}
+                                onChange={(e) => setStaffFormData({ ...staffFormData, is_active: e.target.checked })}
+                                className="w-4 h-4 rounded border-gray-300"
+                            />
+                            <Label htmlFor="is_active">موظف نشط</Label>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" className="glass-button" onClick={() => setStaffModalOpen(false)}>
+                            إلغاء
+                        </Button>
+                        <Button className="gradient-button" onClick={handleSaveStaff}>
+                            {editingStaffId ? 'حفظ التغييرات' : 'إضافة الموظف'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog >
+        </div >
     );
 }
