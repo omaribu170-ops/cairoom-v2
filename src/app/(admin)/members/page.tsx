@@ -170,7 +170,11 @@ export default function MembersPage() {
         return Math.round(totalMinutes / 60 * 10) / 10; // تقريب لأقرب رقم عشري
     };
 
-    // نوافذ جديدة
+    // حساب إجمالي المدفوع للعضو
+    const getMemberTotalPaid = (memberId: string): number => {
+        const visits = mockVisitHistory.filter(v => v.memberId === memberId);
+        return visits.reduce((sum, visit) => sum + visit.totalCost, 0);
+    };
     const [editMemberModalOpen, setEditMemberModalOpen] = useState(false);
     const [lastVisitsModalOpen, setLastVisitsModalOpen] = useState(false);
     const [visitInvoiceModal, setVisitInvoiceModal] = useState<typeof mockVisitHistory[0] | null>(null);
@@ -633,11 +637,11 @@ export default function MembersPage() {
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="p-3 rounded-xl bg-white/5">
                                         <p className="text-sm text-muted-foreground">إجمالي الساعات</p>
-                                        <p className="text-lg font-bold">٤٥ ساعة</p>
+                                        <p className="text-lg font-bold">{getMemberTotalHours(selectedMember.id)} ساعة</p>
                                     </div>
                                     <div className="p-3 rounded-xl bg-white/5">
                                         <p className="text-sm text-muted-foreground">إجمالي المدفوع</p>
-                                        <p className="text-lg font-bold">٢,٢٥٠ ج.م</p>
+                                        <p className="text-lg font-bold">{formatCurrency(getMemberTotalPaid(selectedMember.id))}</p>
                                     </div>
                                 </div>
                             </div>

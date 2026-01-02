@@ -144,7 +144,7 @@ const mockHistorySessions: HistorySession[] = [
         id: 'hist-001', type: 'table',
         tablesUsed: ['طاولة ١', 'طاولة ٣'],
         date: '2024-12-28', startTime: '14:00', endTime: '17:30',
-        members: [{ id: 'm1', name: 'أحمد محمد', phone: '01012345678', joinedAt: '', leftAt: '', orders: [{ productId: 'p1', name: 'قهوة', quantity: 3, price: 25 }] }],
+        members: [{ id: 'm1', name: 'أحمد محمد', phone: '01012345678', joinedAt: '14:00', leftAt: '17:30', orders: [{ productId: 'p1', name: 'قهوة', quantity: 3, price: 25 }] }],
         totalTimeCost: 88, totalOrdersCost: 75, grandTotal: 163
     },
     {
@@ -152,8 +152,8 @@ const mockHistorySessions: HistorySession[] = [
         tablesUsed: ['غرفة VIP ١', 'غرفة VIP ٢'],
         date: '2024-12-28', startTime: '10:00', endTime: '12:00',
         members: [
-            { id: 'm3', name: 'محمد علي', phone: '01234567890', joinedAt: '', leftAt: '', orders: [] },
-            { id: 'm5', name: 'ياسمين خالد', phone: '01156789012', joinedAt: '', leftAt: '', orders: [{ productId: 'p2', name: 'شاي', quantity: 2, price: 15 }] },
+            { id: 'm3', name: 'محمد علي', phone: '01234567890', joinedAt: '10:00', leftAt: '12:00', orders: [] },
+            { id: 'm5', name: 'ياسمين خالد', phone: '01156789012', joinedAt: '10:00', leftAt: '12:00', orders: [{ productId: 'p2', name: 'شاي', quantity: 2, price: 15 }] },
         ],
         totalTimeCost: 700, totalOrdersCost: 30, grandTotal: 730
     },
@@ -161,7 +161,7 @@ const mockHistorySessions: HistorySession[] = [
         id: 'hist-003', type: 'table',
         tablesUsed: ['طاولة ٣', 'طاولة ٥', 'طاولة ٦'],
         date: '2024-12-27', startTime: '16:00', endTime: '19:00',
-        members: [{ id: 'm2', name: 'سارة أحمد', phone: '01123456789', joinedAt: '', leftAt: '', orders: [{ productId: 'p3', name: 'عصير', quantity: 2, price: 30 }] }],
+        members: [{ id: 'm2', name: 'سارة أحمد', phone: '01123456789', joinedAt: '16:00', leftAt: '19:00', orders: [{ productId: 'p3', name: 'عصير', quantity: 2, price: 30 }] }],
         totalTimeCost: 60, totalOrdersCost: 60, grandTotal: 120
     },
     {
@@ -169,8 +169,8 @@ const mockHistorySessions: HistorySession[] = [
         tablesUsed: ['طاولة ١', 'طاولة ٢', 'طاولة ٣'],
         date: '2024-12-26', startTime: '18:00', endTime: '22:00',
         members: [
-            { id: 'm1', name: 'أحمد محمد', phone: '01012345678', joinedAt: '', leftAt: '', orders: [] },
-            { id: 'm2', name: 'سارة أحمد', phone: '01123456789', joinedAt: '', leftAt: '', orders: [] },
+            { id: 'm1', name: 'أحمد محمد', phone: '01012345678', joinedAt: '18:00', leftAt: '22:00', orders: [] },
+            { id: 'm2', name: 'سارة أحمد', phone: '01123456789', joinedAt: '18:00', leftAt: '22:00', orders: [] },
         ],
         totalTimeCost: 800, totalOrdersCost: 0, grandTotal: 800
     },
@@ -178,7 +178,7 @@ const mockHistorySessions: HistorySession[] = [
         id: 'hist-005', type: 'table',
         tablesUsed: ['طاولة ٢'],
         date: '2024-12-25', startTime: '14:00', endTime: '16:00',
-        members: [{ id: 'm4', name: 'عمر حسن', phone: '01098765432', joinedAt: '', leftAt: '', orders: [{ productId: 'p1', name: 'قهوة', quantity: 1, price: 25 }] }],
+        members: [{ id: 'm4', name: 'عمر حسن', phone: '01098765432', joinedAt: '14:00', leftAt: '16:00', orders: [{ productId: 'p1', name: 'قهوة', quantity: 1, price: 25 }] }],
         totalTimeCost: 50, totalOrdersCost: 25, grandTotal: 75
     },
 ];
