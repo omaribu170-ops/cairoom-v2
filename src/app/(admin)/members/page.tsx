@@ -6,6 +6,7 @@
 'use client';
 
 import { useState } from 'react';
+import jsPDF from 'jspdf';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -903,28 +904,62 @@ export default function MembersPage() {
 
             {/* نافذة فاتورة الزيارة */}
             <Dialog open={!!visitInvoiceModal} onOpenChange={() => setVisitInvoiceModal(null)}>
-                <DialogContent className="glass-modal sm:max-w-md">
+                <DialogContent className="glass-modal sm:max-w-lg max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="gradient-text text-xl">فاتورة الجلسة</DialogTitle>
                     </DialogHeader>
-                    {visitInvoiceModal && (
+                    {visitInvoiceModal && selectedMember && (
                         <div className="space-y-4 py-4">
+                            {/* معلومات الجلسة */}
                             <div className="glass-card p-4 space-y-2 text-sm">
                                 <div className="flex justify-between"><span className="text-muted-foreground">رقم الجلسة</span><span className="font-mono">{visitInvoiceModal.id}</span></div>
                                 <div className="flex justify-between"><span className="text-muted-foreground">التاريخ</span><span>{visitInvoiceModal.date}</span></div>
                                 <div className="flex justify-between"><span className="text-muted-foreground">الوقت</span><span>{visitInvoiceModal.startTime} - {visitInvoiceModal.endTime}</span></div>
-                                <div className="flex justify-between"><span className="text-muted-foreground">الطاولة</span><span>{visitInvoiceModal.tableName}</span></div>
+                                <div className="flex justify-between"><span className="text-muted-foreground">الطاولة</span><Badge variant="outline" className="text-xs">{visitInvoiceModal.tableName}</Badge></div>
                             </div>
+
+                            {/* معلومات العضو */}
+                            <div className="glass-card p-4">
+                                <Label className="text-sm mb-2 block">العضو</Label>
+                                <div className="flex items-center gap-3">
+                                    <Avatar className="h-10 w-10">
+                                        <AvatarFallback className="bg-gradient-to-br from-[#E63E32] to-[#F8C033] text-white">{selectedMember.full_name.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <p className="font-bold text-sm">{selectedMember.full_name}</p>
+                                        <p className="text-xs text-muted-foreground">{formatPhoneNumber(selectedMember.phone)}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* الإجمالي */}
                             <div className="glass-card p-4">
                                 <div className="flex justify-between font-bold">
-                                    <span>الإجمالي</span>
+                                    <span>الإجمالي الكلي</span>
                                     <span className="gradient-text text-lg">{formatCurrency(visitInvoiceModal.totalCost)}</span>
                                 </div>
                             </div>
                         </div>
                     )}
-                    <DialogFooter>
+                    <DialogFooter className="gap-2">
                         <Button variant="ghost" className="glass-button" onClick={() => setVisitInvoiceModal(null)}>إغلاق</Button>
+                        <Button className="gradient-button" onClick={() => {
+                            if (!visitInvoiceModal || !selectedMember) return;
+                            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                            doc.setFontSize(18);
+                            doc.text('Session Invoice', 105, 20, { align: 'center' });
+                            doc.setFontSize(12);
+                            doc.text(`Session ID: ${visitInvoiceModal.id}`, 20, 40);
+                            doc.text(`Date: ${visitInvoiceModal.date}`, 20, 50);
+                            doc.text(`Time: ${visitInvoiceModal.startTime} - ${visitInvoiceModal.endTime}`, 20, 60);
+                            doc.text(`Table: ${visitInvoiceModal.tableName}`, 20, 70);
+                            doc.text(`Member: ${selectedMember.full_name}`, 20, 85);
+                            doc.text(`Phone: ${selectedMember.phone}`, 20, 95);
+                            doc.setFontSize(14);
+                            doc.text(`Total: ${visitInvoiceModal.totalCost} EGP`, 20, 115);
+                            doc.save(`invoice_${visitInvoiceModal.id}.pdf`);
+                            toast.success('تم تحميل الفاتورة بنجاح');
+                        }}>تحميل الفاتورة</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

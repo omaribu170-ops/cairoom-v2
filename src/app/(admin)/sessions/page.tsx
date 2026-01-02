@@ -6,6 +6,7 @@
 'use client';
 
 import { useState } from 'react';
+import jsPDF from 'jspdf';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -42,12 +43,15 @@ const mockHalls = [
     { id: 'h3', name: 'قاعة الحديقة', capacity_min: 20, capacity_max: 100, price_per_hour: 500 },
 ];
 
-// بيانات المنتجات
-const mockProducts = [
-    { id: 'p1', name: 'قهوة تركي', price: 25 },
-    { id: 'p2', name: 'شاي', price: 15 },
-    { id: 'p3', name: 'عصير برتقال', price: 30 },
-    { id: 'p4', name: 'ساندويتش', price: 40 },
+// بيانات المنتجات (المخزون) - طعام ومشروبات فقط
+const initialInventoryProducts = [
+    { id: 'p1', name: 'قهوة تركي', type: 'drink' as const, price: 25, stock_quantity: 100 },
+    { id: 'p2', name: 'شاي', type: 'drink' as const, price: 15, stock_quantity: 200 },
+    { id: 'p3', name: 'عصير برتقال', type: 'drink' as const, price: 30, stock_quantity: 50 },
+    { id: 'p4', name: 'نسكافيه', type: 'drink' as const, price: 20, stock_quantity: 80 },
+    { id: 'p5', name: 'ساندويتش جبنة', type: 'food' as const, price: 35, stock_quantity: 30 },
+    { id: 'p6', name: 'كرواسون', type: 'food' as const, price: 25, stock_quantity: 40 },
+    { id: 'p7', name: 'بيتزا صغيرة', type: 'food' as const, price: 45, stock_quantity: 20 },
 ];
 
 // أنواع البيانات
@@ -265,6 +269,40 @@ export default function SessionsPage() {
     const [paymentMethod, setPaymentMethod] = useState<string>('cash');
     const [paymentDetails, setPaymentDetails] = useState({ cardHolder: '', walletNumber: '', walletOwner: '', cairoomUser: '' }); // تفاصيل الدفع
     const [cairoomWalletBalance, setCairoomWalletBalance] = useState<number | null>(null); // رصيد المحفظة الوهمي
+
+    // حالة المخزون وإيرادات الطلبات
+    const [inventoryProducts, setInventoryProducts] = useState(initialInventoryProducts);
+    const [ordersRevenue, setOrdersRevenue] = useState(0);
+
+    // دالة تحميل الفاتورة كـ PDF
+    const handleDownloadInvoicePDF = (session: HistorySession) => {
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        // Use simple ASCII for jsPDF (Arabic not supported without fonts)
+        doc.setFontSize(18);
+        doc.text('Session Invoice', 105, 20, { align: 'center' });
+        doc.setFontSize(12);
+        doc.text(`Session ID: ${session.id}`, 20, 40);
+        doc.text(`Date: ${session.date}`, 20, 50);
+        doc.text(`Time: ${session.startTime} - ${session.endTime}`, 20, 60);
+        doc.text(`Tables: ${session.tablesUsed.join(', ')}`, 20, 70);
+        let yPos = 90;
+        doc.text('Members:', 20, yPos);
+        yPos += 10;
+        session.members.forEach((m, i) => {
+            doc.text(`${i + 1}. ${m.name} - ${m.phone || 'No Phone'}`, 25, yPos);
+            yPos += 7;
+            if (m.orders.length > 0) {
+                m.orders.forEach(o => { doc.text(`   - ${o.name} x${o.quantity} = ${o.price * o.quantity} EGP`, 30, yPos); yPos += 6; });
+            }
+        });
+        yPos += 10;
+        doc.text(`Orders Total: ${session.totalOrdersCost} EGP`, 20, yPos);
+        doc.text(`Time Total: ${session.totalTimeCost} EGP`, 20, yPos + 8);
+        doc.setFontSize(14);
+        doc.text(`Grand Total: ${session.grandTotal} EGP`, 20, yPos + 20);
+        doc.save(`invoice_${session.id}.pdf`);
+        toast.success('تم تحميل الفاتورة بنجاح');
+    };
 
     // Start Session Modal State
     const [startSessionOpen, setStartSessionOpen] = useState(false);
@@ -514,8 +552,24 @@ export default function SessionsPage() {
     // إدارة طلبات الأعضاء في الجلسة النشطة
     const handleUpdateMemberOrder = (memberId: string, productId: string, delta: number) => {
         if (!addOrderModal) return;
-        const product = mockProducts.find(p => p.id === productId);
+        const product = inventoryProducts.find(p => p.id === productId);
         if (!product) return;
+
+        // تحقق من توفر الكمية عند الإضافة
+        if (delta > 0 && product.stock_quantity < delta) {
+            toast.error(`الكمية غير كافية من ${product.name} (المتوفر: ${product.stock_quantity})`);
+            return;
+        }
+
+        // تحديث المخزون
+        setInventoryProducts(prev => prev.map(p =>
+            p.id === productId ? { ...p, stock_quantity: p.stock_quantity - delta } : p
+        ));
+
+        // تتبع الإيرادات
+        if (delta > 0) {
+            setOrdersRevenue(prev => prev + (product.price * delta));
+        }
 
         setActiveSessions(prev => prev.map(s => {
             if (s.id !== addOrderModal.session.id) return s;
@@ -588,7 +642,7 @@ export default function SessionsPage() {
 
     // إضافة/تقليل منتج لعضو
     const handleAdjustProduct = (memberId: string, productId: string, delta: number) => {
-        const product = mockProducts.find(p => p.id === productId);
+        const product = inventoryProducts.find(p => p.id === productId);
         if (!product) return;
         setSessionMembers(sessionMembers.map(m => {
             if (m.id !== memberId) return m;
@@ -1051,7 +1105,7 @@ export default function SessionsPage() {
                     {addOrderModal && (
                         <div className="space-y-4 py-4">
                             <div className="flex flex-wrap gap-2">
-                                {mockProducts.map(product => {
+                                {inventoryProducts.map(product => {
                                     // نستخدم نسخة محدثة من العضو من الستيت
                                     const currentMember = activeSessions.find(s => s.id === addOrderModal.session.id)?.members.find(m => m.id === addOrderModal.member.id);
                                     const order = currentMember?.orders.find(o => o.productId === product.id);
@@ -1230,11 +1284,7 @@ export default function SessionsPage() {
                     )}
                     <DialogFooter className="gap-2">
                         <Button variant="ghost" className="glass-button" onClick={() => setReceiptModal(null)}>إغلاق</Button>
-                        <Button className="gradient-button" onClick={() => {
-                            // PDF download placeholder - would use jspdf in production
-                            toast.success('جاري تحميل الفاتورة...');
-                            setTimeout(() => toast.success('تم تحميل الفاتورة بنجاح'), 1000);
-                        }}>تحميل الفاتورة</Button>
+                        <Button className="gradient-button" onClick={() => receiptModal && handleDownloadInvoicePDF(receiptModal)}>تحميل الفاتورة</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -1356,7 +1406,7 @@ export default function SessionsPage() {
                                             <Button size="sm" variant="ghost" className="text-red-400 h-6 w-6 p-0" onClick={() => handleRemoveSessionMember(m.id)}><X className="h-4 w-4" /></Button>
                                         </div>
                                         <div className="flex flex-wrap gap-1">
-                                            {mockProducts.map(p => {
+                                            {inventoryProducts.map(p => {
                                                 const order = m.orders.find(o => o.productId === p.id);
                                                 return (
                                                     <div key={p.id} className="flex items-center gap-1 glass-card px-2 py-1 text-xs">
