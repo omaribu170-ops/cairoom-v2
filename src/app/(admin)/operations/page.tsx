@@ -59,7 +59,10 @@ export default function OperationsPage() {
 
     // Filters
     const [cleaningFilter, setCleaningFilter] = useState<TimeFilter>('daily');
+    const [cleaningDate, setCleaningDate] = useState<Date | undefined>(new Date());
+
     const [requestFilterTime, setRequestFilterTime] = useState<TimeFilter>('daily');
+    const [requestDate, setRequestDate] = useState<Date | undefined>(undefined);
     const [requestFilterStatus, setRequestFilterStatus] = useState<'all' | 'pending' | 'fulfilled' | 'rejected'>('all');
 
     // Generate dynamic time slots based on start time (12 hours shift)
@@ -137,23 +140,27 @@ export default function OperationsPage() {
         const now = new Date();
         let passTime = false;
 
-        switch (requestFilterTime) {
-            case 'daily': passTime = date.toDateString() === now.toDateString(); break;
-            case 'weekly': {
-                const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
-                passTime = date >= weekAgo; break;
-            }
-            case 'monthly': {
-                const monthAgo = new Date(now); monthAgo.setMonth(now.getMonth() - 1);
-                passTime = date >= monthAgo; break;
-            }
-            case 'semiannual': {
-                const sixMonthsAgo = new Date(now); sixMonthsAgo.setMonth(now.getMonth() - 6);
-                passTime = date >= sixMonthsAgo; break;
-            }
-            case 'annual': {
-                const yearAgo = new Date(now); yearAgo.setFullYear(now.getFullYear() - 1);
-                passTime = date >= yearAgo; break;
+        if (requestDate) {
+            passTime = date.toDateString() === requestDate.toDateString();
+        } else {
+            switch (requestFilterTime) {
+                case 'daily': passTime = date.toDateString() === now.toDateString(); break;
+                case 'weekly': {
+                    const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
+                    passTime = date >= weekAgo; break;
+                }
+                case 'monthly': {
+                    const monthAgo = new Date(now); monthAgo.setMonth(now.getMonth() - 1);
+                    passTime = date >= monthAgo; break;
+                }
+                case 'semiannual': {
+                    const sixMonthsAgo = new Date(now); sixMonthsAgo.setMonth(now.getMonth() - 6);
+                    passTime = date >= sixMonthsAgo; break;
+                }
+                case 'annual': {
+                    const yearAgo = new Date(now); yearAgo.setFullYear(now.getFullYear() - 1);
+                    passTime = date >= yearAgo; break;
+                }
             }
         }
 
@@ -243,14 +250,34 @@ export default function OperationsPage() {
 
                     {/* سجل النظافة */}
                     <div className="mt-8">
-                        <div className="flex items-center justify-between mb-4">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                             <h3 className="font-bold text-lg flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-muted-foreground" />سجل النظافة</h3>
-                            <div className="bg-white/5 p-1 rounded-lg flex text-xs">
+                            <div className="flex items-center gap-2 bg-white/5 p-1 rounded-lg">
+                                {/* Date Picker */}
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="ghost" className="h-8 w-[240px] justify-start text-left font-normal glass-button">
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {cleaningDate ? formatArabicDate(cleaningDate.toISOString()) : "اختر تاريخ"}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0 glass-modal" align="end">
+                                        <Calendar
+                                            mode="single"
+                                            selected={cleaningDate}
+                                            onSelect={setCleaningDate}
+                                            initialFocus
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+
+                                <div className="w-[1px] h-6 bg-white/10 mx-1" />
+
                                 {(['daily', 'weekly', 'monthly'] as const).map(f => (
                                     <button
                                         key={f}
-                                        onClick={() => setCleaningFilter(f)}
-                                        className={cn("px-3 py-1.5 rounded-md transition-colors", cleaningFilter === f ? "bg-primary text-primary-foreground" : "hover:bg-white/5")}
+                                        onClick={() => { setCleaningFilter(f); setCleaningDate(undefined); }}
+                                        className={cn("px-3 py-1.5 rounded-md transition-colors text-xs", cleaningFilter === f && !cleaningDate ? "bg-primary text-primary-foreground" : "hover:bg-white/5")}
                                     >
                                         {filterLabels[f]}
                                     </button>
@@ -258,7 +285,11 @@ export default function OperationsPage() {
                             </div>
                         </div>
                         <Card className="glass-card p-6 text-center text-muted-foreground">
-                            يظهر هنا ملخص الالتزام بالنظافة ({filterLabels[cleaningFilter]})
+                            {cleaningDate ? (
+                                <span>عرض سجل النظافة ليوم: {formatArabicDate(cleaningDate.toISOString())}</span>
+                            ) : (
+                                <span>يظهر هنا ملخص الالتزام بالنظافة ({filterLabels[cleaningFilter]})</span>
+                            )}
                             {/* يمكن إضافة رسوم بيانية أو جداول إحصائية هنا مستقبلاً */}
                         </Card>
                     </div>
@@ -269,15 +300,39 @@ export default function OperationsPage() {
                         <div className="flex-1 flex gap-2">
                             <div className="w-full md:w-48">
                                 <Label className="text-xs mb-1.5 block">الفترة</Label>
-                                <select
-                                    value={requestFilterTime}
-                                    onChange={(e) => setRequestFilterTime(e.target.value as TimeFilter)}
-                                    className="w-full h-9 glass-input rounded-md px-3 text-sm"
-                                >
-                                    {Object.entries(filterLabels).map(([key, label]) => (
-                                        <option key={key} value={key}>{label}</option>
-                                    ))}
-                                </select>
+                                <div className="flex gap-2">
+                                    <select
+                                        value={requestDate ? 'custom' : requestFilterTime}
+                                        onChange={(e) => {
+                                            if (e.target.value !== 'custom') {
+                                                setRequestFilterTime(e.target.value as TimeFilter);
+                                                setRequestDate(undefined);
+                                            }
+                                        }}
+                                        className="w-full h-9 glass-input rounded-md px-3 text-sm"
+                                    >
+                                        {Object.entries(filterLabels).map(([key, label]) => (
+                                            <option key={key} value={key}>{label}</option>
+                                        ))}
+                                        <option value="custom">تاريخ محدد...</option>
+                                    </select>
+
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" size="icon" className={cn("h-9 w-9 glass-button", requestDate && "border-primary text-primary")}>
+                                                <CalendarIcon className="h-4 w-4" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0 glass-modal" align="start">
+                                            <Calendar
+                                                mode="single"
+                                                selected={requestDate}
+                                                onSelect={(date) => { setRequestDate(date); }}
+                                                initialFocus
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
                             </div>
                             <div className="w-full md:w-48">
                                 <Label className="text-xs mb-1.5 block">الحالة</Label>
