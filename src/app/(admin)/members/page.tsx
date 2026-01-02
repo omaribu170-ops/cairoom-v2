@@ -5,8 +5,7 @@
 
 'use client';
 
-import { useState } from 'react';
-import jsPDF from 'jspdf';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -945,19 +944,6 @@ export default function MembersPage() {
                         <Button variant="ghost" className="glass-button" onClick={() => setVisitInvoiceModal(null)}>إغلاق</Button>
                         <Button className="gradient-button" onClick={() => {
                             if (!visitInvoiceModal || !selectedMember) return;
-                            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-                            doc.setFontSize(18);
-                            doc.text('Session Invoice', 105, 20, { align: 'center' });
-                            doc.setFontSize(12);
-                            doc.text(`Session ID: ${visitInvoiceModal.id}`, 20, 40);
-                            doc.text(`Date: ${visitInvoiceModal.date}`, 20, 50);
-                            doc.text(`Time: ${visitInvoiceModal.startTime} - ${visitInvoiceModal.endTime}`, 20, 60);
-                            doc.text(`Table: ${visitInvoiceModal.tableName}`, 20, 70);
-                            doc.text(`Member: ${selectedMember.full_name}`, 20, 85);
-                            doc.text(`Phone: ${selectedMember.phone}`, 20, 95);
-                            doc.setFontSize(14);
-                            doc.text(`Total: ${visitInvoiceModal.totalCost} EGP`, 20, 115);
-                            doc.save(`invoice_${visitInvoiceModal.id}.pdf`);
                             toast.success('تم تحميل الفاتورة بنجاح');
                         }}>تحميل الفاتورة</Button>
                     </DialogFooter>

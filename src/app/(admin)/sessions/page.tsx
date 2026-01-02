@@ -5,8 +5,7 @@
 
 'use client';
 
-import { useState } from 'react';
-import jsPDF from 'jspdf';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -26,6 +25,8 @@ import {
 } from 'lucide-react';
 import { SessionTimer } from '@/components/admin/SessionTimer';
 import { useInventory } from '@/contexts/InventoryContext';
+import { InvoiceTemplate } from '@/components/admin/InvoiceTemplate';
+import { generatePDFFromElement } from '@/lib/generatePDF';
 
 // بيانات الطاولات المتاحة
 const mockTables = [
@@ -265,34 +266,21 @@ export default function SessionsPage() {
     // استخدام سياق المخزون المشترك
     const { products: inventoryProducts, ordersRevenue, reduceStock, addOrderRevenue } = useInventory();
 
-    // دالة تحميل الفاتورة كـ PDF
-    const handleDownloadInvoicePDF = (session: HistorySession) => {
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-        // Use simple ASCII for jsPDF (Arabic not supported without fonts)
-        doc.setFontSize(18);
-        doc.text('Session Invoice', 105, 20, { align: 'center' });
-        doc.setFontSize(12);
-        doc.text(`Session ID: ${session.id}`, 20, 40);
-        doc.text(`Date: ${session.date}`, 20, 50);
-        doc.text(`Time: ${session.startTime} - ${session.endTime}`, 20, 60);
-        doc.text(`Tables: ${session.tablesUsed.join(', ')}`, 20, 70);
-        let yPos = 90;
-        doc.text('Members:', 20, yPos);
-        yPos += 10;
-        session.members.forEach((m, i) => {
-            doc.text(`${i + 1}. ${m.name} - ${m.phone || 'No Phone'}`, 25, yPos);
-            yPos += 7;
-            if (m.orders.length > 0) {
-                m.orders.forEach(o => { doc.text(`   - ${o.name} x${o.quantity} = ${o.price * o.quantity} EGP`, 30, yPos); yPos += 6; });
-            }
-        });
-        yPos += 10;
-        doc.text(`Orders Total: ${session.totalOrdersCost} EGP`, 20, yPos);
-        doc.text(`Time Total: ${session.totalTimeCost} EGP`, 20, yPos + 8);
-        doc.setFontSize(14);
-        doc.text(`Grand Total: ${session.grandTotal} EGP`, 20, yPos + 20);
-        doc.save(`invoice_${session.id}.pdf`);
-        toast.success('تم تحميل الفاتورة بنجاح');
+    // مرجع لقالب الفاتورة
+    const invoiceRef = useRef<HTMLDivElement>(null);
+
+    // دالة تحميل الفاتورة كـ PDF مع دعم العربية
+    const handleDownloadInvoicePDF = async () => {
+        if (!receiptModal || !invoiceRef.current) return;
+
+        toast.info('جاري إعداد الفاتورة...');
+
+        try {
+            await generatePDFFromElement(invoiceRef.current, `فاتورة_${receiptModal.id}`);
+            toast.success('تم تحميل الفاتورة بنجاح');
+        } catch {
+            toast.error('حدث خطأ أثناء تحميل الفاتورة');
+        }
     };
 
     // Start Session Modal State
@@ -1274,9 +1262,33 @@ export default function SessionsPage() {
                             </div>
                         </div>
                     )}
+
+                    {/* قالب الفاتورة المخفي للطباعة */}
+                    {receiptModal && (
+                        <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
+                            <InvoiceTemplate ref={invoiceRef} data={{
+                                id: receiptModal.id,
+                                date: receiptModal.date,
+                                startTime: receiptModal.startTime,
+                                endTime: receiptModal.endTime,
+                                tablesUsed: receiptModal.tablesUsed,
+                                members: receiptModal.members.map(m => ({
+                                    name: m.name,
+                                    phone: m.phone,
+                                    joinedAt: m.joinedAt,
+                                    leftAt: m.leftAt,
+                                    orders: m.orders,
+                                })),
+                                totalOrdersCost: receiptModal.totalOrdersCost,
+                                totalTimeCost: receiptModal.totalTimeCost,
+                                grandTotal: receiptModal.grandTotal,
+                            }} />
+                        </div>
+                    )}
+
                     <DialogFooter className="gap-2">
                         <Button variant="ghost" className="glass-button" onClick={() => setReceiptModal(null)}>إغلاق</Button>
-                        <Button className="gradient-button" onClick={() => receiptModal && handleDownloadInvoicePDF(receiptModal)}>تحميل الفاتورة</Button>
+                        <Button className="gradient-button" onClick={handleDownloadInvoicePDF}>تحميل الفاتورة</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
