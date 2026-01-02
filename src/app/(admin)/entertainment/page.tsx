@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { formatCurrency, formatArabicDate, cn } from '@/lib/utils';
-import { Gamepad2, Trophy, Clock, Users, Plus, Play, Award, Calendar as CalendarIcon, DollarSign, Eye, Trash2, Edit, AlertTriangle, Download } from 'lucide-react';
+import { Gamepad2, Trophy, Clock, Users, Plus, Play, Award, Calendar as CalendarIcon, DollarSign, Eye, Trash2, Edit, AlertTriangle, Download, Search } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 
