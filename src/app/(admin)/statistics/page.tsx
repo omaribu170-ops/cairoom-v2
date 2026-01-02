@@ -58,10 +58,10 @@ const mockSessions = [
 
 // البطولات (من /entertainment)
 const mockTournaments = [
-    { id: 't1', name: 'بطولة ليلة الجمعة', date: '2024-12-27', entry_fee: 50, prize_pool: 400, participants: 12, winner_id: '4' },
-    { id: 't2', name: 'بطولة الشطرنج', date: '2024-12-20', entry_fee: 30, prize_pool: 200, participants: 8, winner_id: '1' },
-    { id: 't3', name: 'مسابقة الورق', date: '2024-12-15', entry_fee: 25, prize_pool: 150, participants: 10, winner_id: '4' },
-    { id: 't4', name: 'ليلة UNO', date: '2024-12-10', entry_fee: 20, prize_pool: 100, participants: 6, winner_id: '3' },
+    { id: 't1', name: 'بطولة ليلة الجمعة', date: '2024-12-27', entry_fee: 50, prize_pool: 400, participants: 12, winner_id: '4', total_prizes: 400 }, // Added total_prizes
+    { id: 't2', name: 'بطولة الشطرنج', date: '2024-12-20', entry_fee: 30, prize_pool: 200, participants: 8, winner_id: '1', total_prizes: 200 },
+    { id: 't3', name: 'مسابقة الورق', date: '2024-12-15', entry_fee: 25, prize_pool: 150, participants: 10, winner_id: '4', total_prizes: 150 },
+    { id: 't4', name: 'ليلة UNO', date: '2024-12-10', entry_fee: 20, prize_pool: 100, participants: 6, winner_id: '3', total_prizes: 100 },
 ];
 
 // طلبات الموظفين المقبولة (من /operations)
@@ -141,7 +141,8 @@ export default function StatisticsPage() {
         const productsCost = productsRevenue * productCostPercentage;
         const staffRequestsCost = mockStaffRequests.filter(r => isInRange(r.date) && r.status === 'fulfilled').reduce((sum, r) => sum + r.amount, 0);
         const withdrawalsCost = mockWithdrawals.filter(w => isInRange(w.date)).reduce((sum, w) => sum + w.amount, 0);
-        const tournamentPrizes = mockTournaments.filter(t => isInRange(t.date)).reduce((sum, t) => sum + t.prize_pool, 0);
+
+        const tournamentPrizes = mockTournaments.filter(t => isInRange(t.date)).reduce((sum, t) => sum + t.total_prizes, 0); // Use total_prizes
 
         // الرواتب حسب الفلتر
         let salariesCost = 0;
@@ -165,7 +166,7 @@ export default function StatisticsPage() {
         const tournaments = mockTournaments.filter(t => isInRange(t.date));
         const gameNightsCount = tournaments.length;
         const gameNightsRevenue = tournaments.reduce((sum, t) => sum + (t.entry_fee * t.participants), 0);
-        const gameNightsPrizes = tournaments.reduce((sum, t) => sum + t.prize_pool, 0);
+        const gameNightsPrizes = tournaments.reduce((sum, t) => sum + t.total_prizes, 0); // Use total_prizes
         const gameNightsProfit = gameNightsRevenue - gameNightsPrizes;
 
         return {
@@ -225,6 +226,39 @@ export default function StatisticsPage() {
         return dayNames.map(day => ({ day, amount: days[day] || 0 }));
     }, []);
 
+    const handleExportFinancialReport = () => {
+        // Exporting summary data is tricky as flat CSV. We'll export the breakdown.
+        // Let's export the daily revenue breakdown for the selected period if possible,
+        // OR just export the summary values as a single row.
+        // Let's export the summary values.
+        const data = [{
+            'الفترة': filterLabels[timeFilter],
+            'إجمالي الإيرادات': filteredData.totalRevenue,
+            'إيرادات الطاولات': filteredData.tablesRevenue,
+            'إيرادات المنتجات': filteredData.productsRevenue,
+            'صافي الربح': filteredData.netProfit,
+            'المصروفات': filteredData.totalExpenses,
+            'الأعضاء الجدد': filteredData.newMembers,
+            'عدد الجلسات': filteredData.avgSessions
+        }];
+        import('@/lib/export-utils').then(({ exportToCSV }) => {
+            exportToCSV(data, `financial_report_${timeFilter}_${new Date().toISOString().split('T')[0]}`);
+            toast.success('تم تصدير التقرير المالي');
+        });
+    };
+
+    const handleExportTopMembers = (title: string, data: { name: string, value: number | string }[]) => {
+        const exportData = data.map((item, index) => ({
+            'الترتيب': index + 1,
+            'الاسم': item.name,
+            'القيمة': item.value
+        }));
+        import('@/lib/export-utils').then(({ exportToCSV }) => {
+            exportToCSV(exportData, `top_${title}_${new Date().toISOString().split('T')[0]}`);
+            toast.success(`تم تصدير قائمة ${title}`);
+        });
+    };
+
     const filterLabels: Record<TimeFilter, string> = {
         daily: 'اليوم', weekly: 'هذا الأسبوع', monthly: 'هذا الشهر', semiannual: 'نصف سنة', annual: 'هذه السنة'
     };
@@ -247,6 +281,10 @@ export default function StatisticsPage() {
                             <TabsTrigger value="annual">سنوي</TabsTrigger>
                         </TabsList>
                     </Tabs>
+                    <Button variant="ghost" className="glass-button" onClick={handleExportFinancialReport}>
+                        <Download className="h-4 w-4 ml-2" />
+                        تصدير CSV
+                    </Button>
                     <Button className="gradient-button"><Download className="h-4 w-4 ml-2" />تصدير PDF</Button>
                 </div>
             </div>
@@ -360,7 +398,10 @@ export default function StatisticsPage() {
             {/* Top Members - 4 cards now */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card className="glass-card">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Wallet className="h-4 w-4 text-emerald-400" />أكثر إنفاقاً</CardTitle></CardHeader>
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                        <CardTitle className="text-sm flex items-center gap-2"><Wallet className="h-4 w-4 text-emerald-400" />أكثر إنفاقاً</CardTitle>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleExportTopMembers('spending', topMembers.bySpending)}><Download className="h-3 w-3" /></Button>
+                    </CardHeader>
                     <CardContent>
                         <div className="space-y-3">
                             {topMembers.bySpending.map((m, i) => (
@@ -374,7 +415,10 @@ export default function StatisticsPage() {
                 </Card>
 
                 <Card className="glass-card">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4 text-blue-400" />أكثر ساعات</CardTitle></CardHeader>
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                        <CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4 text-blue-400" />أكثر ساعات</CardTitle>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleExportTopMembers('hours', topMembers.byHours)}><Download className="h-3 w-3" /></Button>
+                    </CardHeader>
                     <CardContent>
                         <div className="space-y-3">
                             {topMembers.byHours.map((m, i) => (
@@ -388,7 +432,10 @@ export default function StatisticsPage() {
                 </Card>
 
                 <Card className="glass-card">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Trophy className="h-4 w-4 text-yellow-400" />أكثر انتصارات</CardTitle></CardHeader>
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                        <CardTitle className="text-sm flex items-center gap-2"><Trophy className="h-4 w-4 text-yellow-400" />أكثر انتصارات</CardTitle>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleExportTopMembers('wins', topMembers.byWins)}><Download className="h-3 w-3" /></Button>
+                    </CardHeader>
                     <CardContent>
                         <div className="space-y-3">
                             {topMembers.byWins.map((m, i) => (
@@ -402,7 +449,10 @@ export default function StatisticsPage() {
                 </Card>
 
                 <Card className="glass-card">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Gamepad2 className="h-4 w-4 text-purple-400" />أكثر مشاركة</CardTitle></CardHeader>
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                        <CardTitle className="text-sm flex items-center gap-2"><Gamepad2 className="h-4 w-4 text-purple-400" />أكثر مشاركة</CardTitle>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleExportTopMembers('participation', topMembers.byParticipation)}><Download className="h-3 w-3" /></Button>
+                    </CardHeader>
                     <CardContent>
                         <div className="space-y-3">
                             {topMembers.byParticipation.map((m, i) => (

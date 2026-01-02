@@ -21,7 +21,7 @@ import { formatCurrency, cn } from '@/lib/utils';
 import {
     Play, Square, UserPlus, UserMinus, Search, Clock, Eye,
     CreditCard, Wallet, Smartphone, Banknote, ArrowLeftRight,
-    Plus, Coffee, Minus, X, Building2, ShoppingBag, CheckCircle2, AlertCircle,
+    Plus, Coffee, Minus, X, Building2, ShoppingBag, CheckCircle2, AlertCircle, Download
 } from 'lucide-react';
 import { SessionTimer } from '@/components/admin/SessionTimer';
 import { useInventory } from '@/contexts/InventoryContext';
@@ -341,6 +341,23 @@ export default function SessionsPage() {
             (historySubTab === 'halls' && s.type === 'hall');
         return matchesSearch && matchesDate && matchesType;
     });
+
+    const handleExportHistory = () => {
+        const data = filteredHistory.map(s => ({
+            'رقم الجلسة': s.id,
+            'النوع': s.type === 'hall' ? (s.hallName || 'قاعة') : 'طاولة',
+            'الطاولات': s.tablesUsed.join('، '),
+            'الأعضاء': s.members.map(m => m.name).join('، '),
+            'التاريخ': s.date,
+            'وقت البدء': formatArabicTime(s.startTime),
+            'وقت الانتهاء': formatArabicTime(s.endTime),
+            'إجمالي التكلفة': s.grandTotal
+        }));
+        import('@/lib/export-utils').then(({ exportToCSV }) => {
+            exportToCSV(data, `sessions_history_${new Date().toISOString().split('T')[0]}`);
+            toast.success('تم تصدير سجل الجلسات');
+        });
+    };
 
     // إنهاء الجلسة
     const handleEndSession = () => {
@@ -828,6 +845,10 @@ export default function SessionsPage() {
                             <Input placeholder="بحث..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="glass-input pr-10" />
                         </div>
                         <Input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="glass-input w-auto" />
+                        <Button variant="ghost" className="glass-button" onClick={handleExportHistory}>
+                            <Download className="h-4 w-4 ml-2" />
+                            تصدير CSV
+                        </Button>
                     </div>
 
                     <Card className="glass-card overflow-hidden">

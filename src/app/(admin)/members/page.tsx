@@ -213,23 +213,22 @@ export default function MembersPage() {
 
     // تصدير CSV
     const handleExportCSV = () => {
-        const headers = ['الاسم', 'الهاتف', 'الإيميل', 'الجنس', 'رصيد المحفظة', 'تاريخ الانضمام', 'آخر زيارة'];
-        const rows = filteredMembers.map(m => [
-            m.full_name,
-            m.phone,
-            m.email || '',
-            m.gender === 'male' ? 'ذكر' : 'أنثى',
-            m.cairoom_wallet_balance.toString(),
-            m.created_at.split('T')[0],
-            m.updated_at.split('T')[0]
-        ]);
-        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `members_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
-        toast.success('تم تصدير الأعضاء كـ CSV');
+        // Prepare data with Arabic keys for headers
+        const dataToExport = filteredMembers.map(m => ({
+            'الاسم': m.full_name,
+            'الهاتف': m.phone,
+            'البريد الإلكتروني': m.email || '-',
+            'الجنس': m.gender === 'male' ? 'ذكر' : 'أنثى',
+            'رصيد المحفظة': m.cairoom_wallet_balance,
+            'إجمالي الساعات': getMemberTotalHours(m.id),
+            'تاريخ الانضمام': formatArabicDate(m.created_at),
+            'آخر زيارة': formatArabicDate(m.updated_at)
+        }));
+
+        import('@/lib/export-utils').then(({ exportToCSV }) => {
+            exportToCSV(dataToExport, `members_export_${new Date().toISOString().split('T')[0]}`);
+            toast.success('تم تصدير قائمة الأعضاء بنجاح');
+        });
     };
 
     // إحصائيات سريعة

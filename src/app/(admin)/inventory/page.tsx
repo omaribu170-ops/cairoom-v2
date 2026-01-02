@@ -60,6 +60,7 @@ import {
     AlertTriangle,
     TrendingDown,
     TrendingUp,
+    Download,
 } from 'lucide-react';
 import { ProductType } from '@/types/database';
 import { useInventory, InventoryProduct } from '@/contexts/InventoryContext';
@@ -179,6 +180,21 @@ export default function InventoryPage() {
         }
     };
 
+    const handleExportCSV = () => {
+        const data = filteredProducts.map(p => ({
+            'اسم المنتج': p.name,
+            'النوع': typeLabels[p.type],
+            'سعر البيع': p.price,
+            'سعر التكلفة': p.cost_price,
+            'الكمية': p.stock_quantity,
+            'الحالة': p.is_active ? 'نشط' : 'غير نشط'
+        }));
+        import('@/lib/export-utils').then(({ exportToCSV }) => {
+            exportToCSV(data, `inventory_list_${new Date().toISOString().split('T')[0]}`);
+            toast.success('تم تصدير المخزن');
+        });
+    };
+
     const getStockStatus = (quantity: number) => {
         if (quantity === 0) return { label: 'نفذ', class: 'bg-red-500/20 text-red-400 border-red-500/30' };
         if (quantity <= LOW_STOCK_THRESHOLD) return { label: 'منخفض', class: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' };
@@ -236,6 +252,10 @@ export default function InventoryPage() {
                     </TabsList>
                 </Tabs>
 
+                <Button variant="ghost" className="glass-button" onClick={handleExportCSV}>
+                    <Download className="h-4 w-4 ml-2" />
+                    تصدير CSV
+                </Button>
                 <Button className="gradient-button" onClick={handleAddProduct}>
                     <Plus className="h-4 w-4 ml-2" />
                     إضافة منتج

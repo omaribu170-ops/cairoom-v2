@@ -53,6 +53,7 @@ import {
     Trash2,
     Calendar,
     User,
+    Download,
 } from 'lucide-react';
 import { TaskStatus } from '@/types/database';
 
@@ -356,6 +357,37 @@ export default function StaffPage() {
         });
     };
 
+    const handleExportCSV = () => {
+        if (activeTab === 'staff') {
+            const data = filteredStaff.map(s => ({
+                'الاسم': s.user.full_name,
+                'الهاتف': s.user.phone,
+                'بداية الشيفت': s.shift_start,
+                'نهاية الشيفت': s.shift_end,
+                'الراتب': s.salary,
+                'العنوان': s.address || '-',
+                'الحالة': s.is_active ? 'نشط' : 'متوقف'
+            }));
+            import('@/lib/export-utils').then(({ exportToCSV }) => {
+                exportToCSV(data, `staff_list_${new Date().toISOString().split('T')[0]}`);
+                toast.success('تم تصدير قائمة الموظفين');
+            });
+        } else {
+            const data = filteredTasks.map(t => ({
+                'العنوان': t.title,
+                'الوصف': t.description || '-',
+                'الموظف المسؤول': t.assignee.full_name,
+                'الموعد النهائي': formatArabicDateTime(t.deadline),
+                'الحالة': taskStatusLabels[t.status],
+                'تاريخ الإنشاء': formatArabicDateTime(t.created_at)
+            }));
+            import('@/lib/export-utils').then(({ exportToCSV }) => {
+                exportToCSV(data, `tasks_list_${new Date().toISOString().split('T')[0]}`);
+                toast.success('تم تصدير قائمة المهام');
+            });
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* العنوان */}
@@ -390,6 +422,12 @@ export default function StaffPage() {
                             className="glass-input pr-10"
                         />
                     </div>
+
+                    {/* زر التصدير */}
+                    <Button variant="ghost" className="glass-button" onClick={handleExportCSV}>
+                        <Download className="h-4 w-4 ml-2" />
+                        تصدير {activeTab === 'staff' ? 'الموظفين' : 'المهام'}
+                    </Button>
 
                     {/* زر الإضافة */}
                     {activeTab === 'staff' ? (

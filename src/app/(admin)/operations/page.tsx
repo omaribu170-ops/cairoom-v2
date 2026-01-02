@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { formatCurrency, formatArabicDate, cn } from '@/lib/utils';
-import { ClipboardCheck, Package, Check, X, Clock, AlertTriangle, Plus, Calendar as CalendarIcon, Filter, Eye } from 'lucide-react';
+import { ClipboardCheck, Package, Check, X, Clock, AlertTriangle, Plus, Calendar as CalendarIcon, Filter, Eye, Download } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 
@@ -231,6 +231,42 @@ export default function OperationsPage() {
         pendingRequests: requests.filter(r => r.status === 'pending').length,
     };
 
+    const handleExportCleaningHistory = () => {
+        const data = Object.keys(cleaningData)
+            .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+            .filter(dateKey => !cleaningDate || dateKey === cleaningDate.toLocaleDateString('en-CA'))
+            .map(dateKey => {
+                const dayData = cleaningData[dateKey];
+                const completedCount = Object.values(dayData.checks || {}).flatMap(s => Object.values(s)).filter(s => s === 'checked').length;
+                const empName = mockEmployees.find(e => e.id === dayData.employeeId)?.name || 'غير محدد';
+                return {
+                    'التاريخ': formatArabicDate(dateKey),
+                    'الموظف المسؤول': empName,
+                    'بداية الشيفت': dayData.startTime,
+                    'نهاية الشيفت': dayData.endTime,
+                    'المهام المنجزة': completedCount
+                };
+            });
+        import('@/lib/export-utils').then(({ exportToCSV }) => {
+            exportToCSV(data, `cleaning_history_${new Date().toISOString().split('T')[0]}`);
+            toast.success('تم تصدير سجل النظافة');
+        });
+    };
+
+    const handleExportRequests = () => {
+        const data = filteredRequests.map(r => ({
+            'مقدم الطلب': r.requester,
+            'المطلوب': r.items,
+            'التكلفة المتوقعة': r.estimated_cost,
+            'الحالة': r.status === 'pending' ? 'منتظر' : r.status === 'fulfilled' ? 'تم' : 'مرفوض',
+            'التاريخ': formatArabicDate(r.date)
+        }));
+        import('@/lib/export-utils').then(({ exportToCSV }) => {
+            exportToCSV(data, `requests_list_${new Date().toISOString().split('T')[0]}`);
+            toast.success('تم تصدير الطلبات');
+        });
+    };
+
     return (
         <div className="space-y-6">
             <div><h1 className="text-2xl font-bold gradient-text">العمليات</h1><p className="text-muted-foreground mt-1">إدارة النظافة وطلبات الموظفين</p></div>
@@ -360,6 +396,10 @@ export default function OperationsPage() {
                                     </button>
                                 ))}
                             </div>
+                            <Button variant="ghost" size="sm" className="glass-button h-8" onClick={handleExportCleaningHistory}>
+                                <Download className="h-4 w-4 ml-2" />
+                                تصدير
+                            </Button>
                         </div>
                         <Card className="glass-card text-center text-muted-foreground overflow-hidden">
                             {/* Show list of history items instead of placeholder */}
@@ -466,7 +506,11 @@ export default function OperationsPage() {
                                 </select>
                             </div>
                         </div>
-                        <div className="flex items-end">
+                        <div className="flex items-end gap-2">
+                            <Button variant="ghost" className="glass-button" onClick={handleExportRequests}>
+                                <Download className="h-4 w-4 ml-2" />
+                                تصدير CSV
+                            </Button>
                             <Button className="gradient-button" onClick={() => setRequestModalOpen(true)}><Plus className="h-4 w-4 ml-2" />طلب جديد</Button>
                         </div>
                     </div>
