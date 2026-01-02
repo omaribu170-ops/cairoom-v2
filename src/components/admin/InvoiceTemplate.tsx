@@ -32,13 +32,30 @@ interface InvoiceTemplateProps {
     data: InvoiceData;
 }
 
-// تحويل الوقت لصيغة عربية
+// تحويل الوقت لصيغة عربية - يدعم صيغة HH:MM وصيغة ISO
 const formatArabicTime = (time: string): string => {
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours);
-    const period = hour >= 12 ? 'م' : 'ص';
-    const hour12 = hour % 12 || 12;
-    return `${hour12}:${minutes} ${period}`;
+    if (!time) return 'غير متوفر';
+
+    let hours: number, minutes: number;
+
+    // تحقق إذا كان التنسيق ISO date (يحتوي على T)
+    if (time.includes('T')) {
+        const date = new Date(time);
+        hours = date.getHours();
+        minutes = date.getMinutes();
+    } else if (time.includes(':')) {
+        // تنسيق HH:MM
+        const parts = time.split(':');
+        hours = parseInt(parts[0]);
+        minutes = parseInt(parts[1]);
+    } else {
+        return time; // إرجاع القيمة كما هي إذا لم يتم التعرف على التنسيق
+    }
+
+    const period = hours >= 12 ? 'م' : 'ص';
+    const hour12 = hours % 12 || 12;
+    const minutesStr = minutes.toString().padStart(2, '0');
+    return `${hour12}:${minutesStr} ${period}`;
 };
 
 // تحويل التاريخ لصيغة عربية

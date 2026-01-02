@@ -154,6 +154,21 @@ export default function MembersPage() {
     const [joinDateFilter, setJoinDateFilter] = useState('');
     const [lastVisitSort, setLastVisitSort] = useState<'newest' | 'oldest' | 'none'>('none');
     const [walletSort, setWalletSort] = useState<'highest' | 'lowest' | 'none'>('none');
+    const [totalHoursSort, setTotalHoursSort] = useState<'highest' | 'lowest' | 'none'>('none');
+
+    // حساب إجمالي الساعات للعضو
+    const getMemberTotalHours = (memberId: string): number => {
+        const visits = mockVisitHistory.filter(v => v.memberId === memberId);
+        let totalMinutes = 0;
+        visits.forEach(visit => {
+            const [startH, startM] = visit.startTime.split(':').map(Number);
+            const [endH, endM] = visit.endTime.split(':').map(Number);
+            const startMinutes = startH * 60 + startM;
+            const endMinutes = endH * 60 + endM;
+            totalMinutes += endMinutes - startMinutes;
+        });
+        return Math.round(totalMinutes / 60 * 10) / 10; // تقريب لأقرب رقم عشري
+    };
 
     // نوافذ جديدة
     const [editMemberModalOpen, setEditMemberModalOpen] = useState(false);
@@ -183,6 +198,8 @@ export default function MembersPage() {
             return matchSearch && matchGender && matchJoinDate;
         })
         .sort((a, b) => {
+            if (totalHoursSort === 'highest') return getMemberTotalHours(b.id) - getMemberTotalHours(a.id);
+            if (totalHoursSort === 'lowest') return getMemberTotalHours(a.id) - getMemberTotalHours(b.id);
             if (lastVisitSort === 'newest') return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
             if (lastVisitSort === 'oldest') return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
             if (walletSort === 'highest') return b.cairoom_wallet_balance - a.cairoom_wallet_balance;
@@ -430,10 +447,18 @@ export default function MembersPage() {
                         <option value="lowest">الأقل أولاً</option>
                     </select>
 
+                    {/* ترتيب إجمالي الساعات */}
+                    <select value={totalHoursSort} onChange={(e) => setTotalHoursSort(e.target.value as any)}
+                        className="glass-input rounded-lg px-3 py-2 text-sm border border-white/10 bg-white/5">
+                        <option value="none">إجمالي الساعات</option>
+                        <option value="highest">الأكثر</option>
+                        <option value="lowest">الأقل</option>
+                    </select>
+
                     {/* زر مسح الفلاتر */}
-                    {(genderFilter !== 'all' || joinDateFilter || lastVisitSort !== 'none' || walletSort !== 'none') && (
+                    {(genderFilter !== 'all' || joinDateFilter || lastVisitSort !== 'none' || walletSort !== 'none' || totalHoursSort !== 'none') && (
                         <Button variant="ghost" size="sm" className="glass-button text-xs"
-                            onClick={() => { setGenderFilter('all'); setJoinDateFilter(''); setLastVisitSort('none'); setWalletSort('none'); }}>
+                            onClick={() => { setGenderFilter('all'); setJoinDateFilter(''); setLastVisitSort('none'); setWalletSort('none'); setTotalHoursSort('none'); }}>
                             مسح الفلاتر
                         </Button>
                     )}
@@ -449,6 +474,7 @@ export default function MembersPage() {
                             <TableHead className="text-right">الهاتف</TableHead>
                             <TableHead className="text-right">الإيميل</TableHead>
                             <TableHead className="text-right">رصيد المحفظة</TableHead>
+                            <TableHead className="text-right">إجمالي الساعات</TableHead>
                             <TableHead className="text-right">آخر زيارة</TableHead>
                             <TableHead className="text-right w-[80px]">إجراءات</TableHead>
                         </TableRow>
@@ -481,6 +507,11 @@ export default function MembersPage() {
                                 <TableCell>
                                     <Badge className={member.cairoom_wallet_balance > 0 ? 'status-available' : 'bg-white/5 text-muted-foreground'}>
                                         {formatCurrency(member.cairoom_wallet_balance)}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell>
+                                    <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                        {getMemberTotalHours(member.id)} ساعة
                                     </Badge>
                                 </TableCell>
                                 <TableCell className="text-muted-foreground">

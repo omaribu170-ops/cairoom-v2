@@ -264,7 +264,7 @@ export default function SessionsPage() {
     const [cairoomWalletBalance, setCairoomWalletBalance] = useState<number | null>(null); // رصيد المحفظة الوهمي
 
     // استخدام سياق المخزون المشترك
-    const { products: inventoryProducts, ordersRevenue, reduceStock, addOrderRevenue } = useInventory();
+    const { products: inventoryProducts, ordersRevenue, reduceStock, addOrderRevenue, getOrderableProducts } = useInventory();
 
     // مرجع لقالب الفاتورة
     const invoiceRef = useRef<HTMLDivElement>(null);
@@ -1085,7 +1085,7 @@ export default function SessionsPage() {
                     {addOrderModal && (
                         <div className="space-y-4 py-4">
                             <div className="flex flex-wrap gap-2">
-                                {inventoryProducts.map(product => {
+                                {getOrderableProducts().map(product => {
                                     // نستخدم نسخة محدثة من العضو من الستيت
                                     const currentMember = activeSessions.find(s => s.id === addOrderModal.session.id)?.members.find(m => m.id === addOrderModal.member.id);
                                     const order = currentMember?.orders.find(o => o.productId === product.id);
@@ -1410,7 +1410,7 @@ export default function SessionsPage() {
                                             <Button size="sm" variant="ghost" className="text-red-400 h-6 w-6 p-0" onClick={() => handleRemoveSessionMember(m.id)}><X className="h-4 w-4" /></Button>
                                         </div>
                                         <div className="flex flex-wrap gap-1">
-                                            {inventoryProducts.map(p => {
+                                            {getOrderableProducts().map(p => {
                                                 const order = m.orders.find(o => o.productId === p.id);
                                                 return (
                                                     <div key={p.id} className="flex items-center gap-1 glass-card px-2 py-1 text-xs">

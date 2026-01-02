@@ -1068,7 +1068,7 @@ export default function AdminDashboardPage() {
                     {addOrderModal && (
                         <div className="space-y-4 py-4">
                             <div className="flex flex-wrap gap-2">
-                                {inventoryProducts.map(product => {
+                                {getOrderableProducts().map(product => {
                                     const currentMember = activeSessions.find((s: ActiveSession) => s.id === addOrderModal.session.id)?.members.find((m: SessionMember) => m.id === addOrderModal.member.id);
                                     const order = currentMember?.orders.find((o: any) => o.productId === product.id);
                                     return (
@@ -1302,7 +1302,7 @@ export default function AdminDashboardPage() {
                                             <Button size="sm" variant="ghost" className="text-red-400 h-6 w-6 p-0" onClick={() => handleRemoveSessionMember(m.id)}><X className="h-4 w-4" /></Button>
                                         </div>
                                         <div className="flex flex-wrap gap-1">
-                                            {inventoryProducts.map(p => {
+                                            {getOrderableProducts().map(p => {
                                                 const order = m.orders.find(o => o.productId === p.id);
                                                 return (
                                                     <div key={p.id} className="flex items-center gap-1 glass-card px-2 py-1 text-xs">
