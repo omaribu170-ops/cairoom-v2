@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { formatCurrency, formatArabicDate, cn } from '@/lib/utils';
-import { ClipboardCheck, Package, Check, X, Clock, AlertTriangle, Plus, Calendar as CalendarIcon, Filter } from 'lucide-react';
+import { ClipboardCheck, Package, Check, X, Clock, AlertTriangle, Plus, Calendar as CalendarIcon, Filter, Eye } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 
@@ -47,36 +47,77 @@ const filterLabels: Record<TimeFilter, string> = {
     daily: 'اليوم', weekly: 'هذا الأسبوع', monthly: 'هذا الشهر', semiannual: 'نصف سنة', annual: 'هذه السنة'
 };
 
+// Mock Employees
+const mockEmployees = [
+    { id: '1', name: 'أحمد محمد' },
+    { id: '2', name: 'علي حسن' },
+    { id: '3', name: 'سارة محمود' },
+];
+
 export default function OperationsPage() {
     const [activeTab, setActiveTab] = useState('cleaning');
+
+    // Cleaning State
     const [cleaningStartTime, setCleaningStartTime] = useState('10:00');
+    const [cleaningEndTime, setCleaningEndTime] = useState('22:00');
+    const [assignedEmployee, setAssignedEmployee] = useState<string>('1');
+
     // Using simple mock structure for demo, in real app this would be fetched based on date
-    const [cleaningData, setCleaningData] = useState<Record<string, Record<string, Record<string, 'checked' | 'missed' | 'pending'>>>>({
-        [new Date().toLocaleDateString('en-CA')]: mockCleaning
+    const [cleaningData, setCleaningData] = useState<Record<string, {
+        checks: Record<string, Record<string, 'checked' | 'missed' | 'pending'>>,
+        startTime: string,
+        endTime: string,
+        employeeId: string
+    }>>({
+        [new Date().toLocaleDateString('en-CA')]: {
+            checks: mockCleaning,
+            startTime: '10:00',
+            endTime: '22:00',
+            employeeId: '1'
+        },
+        [new Date(Date.now() - 86400000).toLocaleDateString('en-CA')]: {
+            checks: mockCleaning,
+            startTime: '09:00',
+            endTime: '21:00',
+            employeeId: '2'
+        }
     });
+
     const [requests, setRequests] = useState(mockRequests);
     const [requestModalOpen, setRequestModalOpen] = useState(false);
+
+    // Report Modal State
+    const [reportModalOpen, setReportModalOpen] = useState(false);
+    const [selectedReportDate, setSelectedReportDate] = useState<string | null>(null);
 
     // Filters
     const [cleaningFilter, setCleaningFilter] = useState<TimeFilter>('daily');
     const [cleaningDate, setCleaningDate] = useState<Date | undefined>(new Date());
 
     const [requestFilterTime, setRequestFilterTime] = useState<TimeFilter>('daily');
+    const [requestFilterEmployee, setRequestFilterEmployee] = useState<string>('all');
     const [requestDate, setRequestDate] = useState<Date | undefined>(undefined);
     const [requestFilterStatus, setRequestFilterStatus] = useState<'all' | 'pending' | 'fulfilled' | 'rejected'>('all');
 
-    // Generate dynamic time slots based on start time (12 hours shift)
-    const generateTimeSlots = (start: string) => {
+    // Generate dynamic time slots based on start/end time
+    const generateTimeSlots = (start: string, end: string) => {
         const slots = [];
         const [startH] = start.split(':').map(Number);
-        for (let i = 0; i < 13; i++) {
-            const h = (startH + i) % 24;
-            slots.push(`${h.toString().padStart(2, '0')}:00`);
+        const [endH] = end.split(':').map(Number);
+
+        let currentH = startH;
+        // Simple loop for hours, handling day rollover if needed (assuming same day for now)
+        // If end < start, assumed next day, loop until endH + 24
+        const limit = endH < startH ? endH + 24 : endH;
+
+        for (let h = startH; h <= limit; h++) {
+            const hour = h % 24;
+            slots.push(`${hour.toString().padStart(2, '0')}:00`);
         }
         return slots;
     };
 
-    const currentSlots = generateTimeSlots(cleaningStartTime);
+    const currentSlots = generateTimeSlots(cleaningStartTime, cleaningEndTime);
     const todayKey = new Date().toLocaleDateString('en-CA');
 
     // Real-time check logic
@@ -97,17 +138,17 @@ export default function OperationsPage() {
     };
 
     const getSlotStatus = (dateKey: string, slot: string, area: string) => {
-        // If data exists, return it
-        if (cleaningData[dateKey]?.[slot]?.[area]) return cleaningData[dateKey][slot][area];
+        const dayData = cleaningData[dateKey];
+        if (dayData?.checks?.[slot]?.[area]) return dayData.checks[slot][area];
 
         // If no data, check if it's past
         if (dateKey === todayKey) {
             const now = new Date();
             const [slotH] = slot.split(':').map(Number);
             const currentH = now.getHours();
-            if (currentH > slotH) return 'missed'; // Auto-mark missed if time passed
+            if (currentH > slotH) return 'missed';
         } else if (new Date(dateKey) < new Date(todayKey)) {
-            return 'missed'; // All past days unchecked are missed
+            return 'missed';
         }
 
         return 'pending';
@@ -117,11 +158,21 @@ export default function OperationsPage() {
         setCleaningData(prev => ({
             ...prev,
             [todayKey]: {
-                ...prev[todayKey],
-                [slot]: { ...prev[todayKey]?.[slot], [area]: 'checked' }
+                startTime: cleaningStartTime,
+                endTime: cleaningEndTime,
+                employeeId: assignedEmployee,
+                checks: {
+                    ...prev[todayKey]?.checks,
+                    [slot]: { ...prev[todayKey]?.checks?.[slot], [area]: 'checked' }
+                }
             }
         }));
         toast.success('تم تسجيل النظافة');
+    };
+
+    const handleViewReport = (dateKey: string) => {
+        setSelectedReportDate(dateKey);
+        setReportModalOpen(true);
     };
 
     const handleApproveRequest = (id: string) => {
@@ -165,12 +216,17 @@ export default function OperationsPage() {
         }
 
         const passStatus = requestFilterStatus === 'all' || r.status === requestFilterStatus;
-        return passTime && passStatus;
+        // Mocking employee ID mapping for demo. In real app, requester would be an object or we'd have ID.
+        // Assuming '1' is Ahmed, '2' is Ali for mock purposes
+        const requesterId = r.requester.includes('أحمد') ? '1' : r.requester.includes('علي') ? '2' : '3';
+        const passEmployee = requestFilterEmployee === 'all' || requesterId === requestFilterEmployee;
+
+        return passTime && passStatus && passEmployee;
     });
 
     const stats = {
-        checked: Object.values(cleaningData[todayKey] || {}).flatMap(s => Object.values(s)).filter(s => s === 'checked').length,
-        missed: 0, // Calculated dynamically in render for simplicity of this demo
+        checked: Object.values(cleaningData[todayKey]?.checks || {}).flatMap(s => Object.values(s)).filter(s => s === 'checked').length,
+        missed: 0,
         pending: 0,
         pendingRequests: requests.filter(r => r.status === 'pending').length,
     };
@@ -195,19 +251,40 @@ export default function OperationsPage() {
 
                 <TabsContent value="cleaning">
                     <Card className="glass-card overflow-x-auto">
-                        <div className="p-4 border-b border-white/10 flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-2">
-                                <Label>وقت بداية اليوم:</Label>
-                                <Input
-                                    type="time"
-                                    value={cleaningStartTime}
-                                    onChange={(e) => setCleaningStartTime(e.target.value)}
-                                    className="glass-input w-32 h-9"
-                                />
+                        <div className="p-4 border-b border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div className="flex flex-wrap items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <Label>بداية:</Label>
+                                    <Input
+                                        type="time"
+                                        value={cleaningStartTime}
+                                        onChange={(e) => setCleaningStartTime(e.target.value)}
+                                        className="glass-input w-28 h-9"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Label>نهاية:</Label>
+                                    <Input
+                                        type="time"
+                                        value={cleaningEndTime}
+                                        onChange={(e) => setCleaningEndTime(e.target.value)}
+                                        className="glass-input w-28 h-9"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Label>الموظف:</Label>
+                                    <select
+                                        value={assignedEmployee}
+                                        onChange={(e) => setAssignedEmployee(e.target.value)}
+                                        className="glass-input w-36 h-9 px-2 text-sm rounded-md"
+                                    >
+                                        {mockEmployees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                                    </select>
+                                </div>
                             </div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground bg-yellow-500/10 px-3 py-1 rounded-full border border-yellow-500/20">
                                 <AlertTriangle className="h-3 w-3" />
-                                يتم إغلاق الخانات تلقائياً بعد مرور الوقت
+                                يتم إغلاق الخانات تلقائياً
                             </div>
                         </div>
                         <table className="w-full text-sm">
@@ -284,17 +361,47 @@ export default function OperationsPage() {
                                 ))}
                             </div>
                         </div>
-                        <Card className="glass-card p-6 text-center text-muted-foreground">
-                            {cleaningDate ? (
-                                <span>عرض سجل النظافة ليوم: {formatArabicDate(cleaningDate.toISOString())}</span>
-                            ) : (
-                                <span>يظهر هنا ملخص الالتزام بالنظافة ({filterLabels[cleaningFilter]})</span>
-                            )}
-                            {/* يمكن إضافة رسوم بيانية أو جداول إحصائية هنا مستقبلاً */}
+                        <Card className="glass-card text-center text-muted-foreground overflow-hidden">
+                            {/* Show list of history items instead of placeholder */}
+                            <table className="w-full text-sm">
+                                <thead className="bg-white/5">
+                                    <tr>
+                                        <th className="p-3 text-right">التاريخ</th>
+                                        <th className="p-3 text-right">الموظف</th>
+                                        <th className="p-3 text-right">عدد المهام المنجزة</th>
+                                        <th className="p-3 text-center w-[80px]">عرض</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {Object.keys(cleaningData)
+                                        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+                                        .filter(dateKey => {
+                                            if (cleaningDate) return dateKey === cleaningDate.toLocaleDateString('en-CA');
+                                            // TODO: impl other filters
+                                            return true;
+                                        })
+                                        .map(dateKey => {
+                                            const dayData = cleaningData[dateKey];
+                                            const completedCount = Object.values(dayData.checks || {}).flatMap(s => Object.values(s)).filter(s => s === 'checked').length;
+                                            const empName = mockEmployees.find(e => e.id === dayData.employeeId)?.name || 'غير محدد';
+                                            return (
+                                                <tr key={dateKey} className="border-t border-white/5 hover:bg-white/5">
+                                                    <td className="p-3">{formatArabicDate(dateKey)}</td>
+                                                    <td className="p-3">{empName}</td>
+                                                    <td className="p-3">{completedCount} مهمة</td>
+                                                    <td className="p-3 text-center">
+                                                        <Button size="sm" variant="ghost" className="glass-button h-8 w-8 p-0" onClick={() => handleViewReport(dateKey)}>
+                                                            <Eye className="h-4 w-4" />
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                </tbody>
+                            </table>
                         </Card>
                     </div>
                 </TabsContent>
-
                 <TabsContent value="requests" className="space-y-4">
                     <div className="flex flex-col md:flex-row gap-4">
                         <div className="flex-1 flex gap-2">
@@ -333,6 +440,17 @@ export default function OperationsPage() {
                                         </PopoverContent>
                                     </Popover>
                                 </div>
+                            </div>
+                            <div className="w-full md:w-48">
+                                <Label className="text-xs mb-1.5 block">مقدم الطلب</Label>
+                                <select
+                                    value={requestFilterEmployee}
+                                    onChange={(e) => setRequestFilterEmployee(e.target.value)}
+                                    className="w-full h-9 glass-input rounded-md px-3 text-sm"
+                                >
+                                    <option value="all">الكل</option>
+                                    {mockEmployees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                                </select>
                             </div>
                             <div className="w-full md:w-48">
                                 <Label className="text-xs mb-1.5 block">الحالة</Label>
@@ -393,6 +511,77 @@ export default function OperationsPage() {
                     <DialogFooter><Button variant="ghost" className="glass-button" onClick={() => setRequestModalOpen(false)}>إلغاء</Button><Button className="gradient-button">إرسال الطلب</Button></DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div >
+            {/* Report Modal */}
+            <Dialog open={reportModalOpen} onOpenChange={setReportModalOpen}>
+                <DialogContent className="glass-modal max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="gradient-text">
+                            تقرير نظافة - {selectedReportDate ? formatArabicDate(selectedReportDate) : ''}
+                        </DialogTitle>
+                    </DialogHeader>
+                    {selectedReportDate && cleaningData[selectedReportDate] && (
+                        <div className="space-y-6">
+                            {/* Metadata */}
+                            <div className="grid grid-cols-3 gap-4 p-4 glass-card bg-white/5">
+                                <div>
+                                    <Label className="text-muted-foreground text-xs">الموظف المسؤول</Label>
+                                    <p className="font-medium mt-1">
+                                        {mockEmployees.find(e => e.id === cleaningData[selectedReportDate].employeeId)?.name || 'غير محدد'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <Label className="text-muted-foreground text-xs">بداية الشيفت</Label>
+                                    <p className="font-medium mt-1">{cleaningData[selectedReportDate].startTime}</p>
+                                </div>
+                                <div>
+                                    <Label className="text-muted-foreground text-xs">نهاية الشيفت</Label>
+                                    <p className="font-medium mt-1">{cleaningData[selectedReportDate].endTime}</p>
+                                </div>
+                            </div>
+
+                            {/* Report Table */}
+                            <div className="glass-card overflow-hidden">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-white/5">
+                                        <tr>
+                                            <th className="p-3 text-right">الوقت</th>
+                                            {areas.map(area => <th key={area} className="p-3 text-center">{areaLabels[area]}</th>)}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {generateTimeSlots(
+                                            cleaningData[selectedReportDate].startTime,
+                                            cleaningData[selectedReportDate].endTime
+                                        ).map(slot => (
+                                            <tr key={slot} className="border-t border-white/5">
+                                                <td className="p-3 font-mono">{slot}</td>
+                                                {areas.map(area => {
+                                                    const status = cleaningData[selectedReportDate!].checks[slot]?.[area] || 'pending';
+                                                    // Calculate if missed based on date comparison
+                                                    // If past date, pending = missed
+                                                    let displayStatus = status;
+                                                    if (status === 'pending' && new Date(selectedReportDate!) < new Date(todayKey)) {
+                                                        displayStatus = 'missed';
+                                                    }
+
+                                                    return (
+                                                        <td key={area} className="p-3 text-center">
+                                                            {displayStatus === 'checked' && <Badge className="status-available"><Check className="h-3 w-3 mr-1" />تم</Badge>}
+                                                            {displayStatus === 'missed' && <Badge className="status-busy"><X className="h-3 w-3 mr-1" />فات</Badge>}
+                                                            {displayStatus === 'pending' && <span className="text-muted-foreground">-</span>}
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+        </div>
     );
 }
