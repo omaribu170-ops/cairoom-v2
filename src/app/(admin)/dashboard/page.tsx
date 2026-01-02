@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { SessionTimer } from '@/components/admin/SessionTimer';
 import { toast } from 'sonner';
+import { useInventory } from '@/contexts/InventoryContext';
 
 // أنواع الفترات الزمنية
 type TimePeriod = 'day' | 'week' | 'month' | 'halfyear' | 'year' | 'custom';
@@ -57,16 +58,7 @@ const mockMembers = [
     { id: 'm4', full_name: 'عمر حسن', phone: '01098765432', gender: 'male' },
 ];
 
-// بيانات المنتجات (المخزون) - طعام ومشروبات فقط
-const initialInventoryProducts = [
-    { id: 'p1', name: 'قهوة تركي', type: 'drink' as const, price: 25, stock_quantity: 100 },
-    { id: 'p2', name: 'شاي', type: 'drink' as const, price: 15, stock_quantity: 200 },
-    { id: 'p3', name: 'عصير برتقال', type: 'drink' as const, price: 30, stock_quantity: 50 },
-    { id: 'p4', name: 'نسكافيه', type: 'drink' as const, price: 20, stock_quantity: 80 },
-    { id: 'p5', name: 'ساندويتش جبنة', type: 'food' as const, price: 35, stock_quantity: 30 },
-    { id: 'p6', name: 'كرواسون', type: 'food' as const, price: 25, stock_quantity: 40 },
-    { id: 'p7', name: 'بيتزا صغيرة', type: 'food' as const, price: 45, stock_quantity: 20 },
-];
+// استخدام سياق المخزون بدلاً من البيانات التجريبية
 
 // أنواع البيانات
 interface TableHistoryEntry {
@@ -249,9 +241,8 @@ export default function AdminDashboardPage() {
     const [customDate, setCustomDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [activeSessions, setActiveSessions] = useState<ActiveSession[]>(initialActiveSessions);
 
-    // حالة المخزون وإيرادات الطلبات
-    const [inventoryProducts, setInventoryProducts] = useState(initialInventoryProducts);
-    const [ordersRevenue, setOrdersRevenue] = useState(0);
+    // استخدام سياق المخزون المشترك
+    const { products: inventoryProducts, ordersRevenue, reduceStock, addOrderRevenue, getOrderableProducts } = useInventory();
 
     // Start Session Modal State
     const [startSessionOpen, setStartSessionOpen] = useState(false);
@@ -475,14 +466,15 @@ export default function AdminDashboardPage() {
             return;
         }
 
-        // تحديث المخزون
-        setInventoryProducts(prev => prev.map(p =>
-            p.id === productId ? { ...p, stock_quantity: p.stock_quantity - delta } : p
-        ));
-
-        // تتبع الإيرادات
+        // تحديث المخزون باستخدام السياق المشترك
         if (delta > 0) {
-            setOrdersRevenue(prev => prev + (product.price * delta));
+            const success = reduceStock(productId, delta);
+            if (!success) {
+                toast.error('حدث خطأ في تحديث المخزون');
+                return;
+            }
+            // تتبع الإيرادات
+            addOrderRevenue(product.price * delta);
         }
 
         setActiveSessions(prev => prev.map(s => {

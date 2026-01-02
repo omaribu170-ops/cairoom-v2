@@ -25,6 +25,7 @@ import {
     Plus, Coffee, Minus, X, Building2, ShoppingBag, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import { SessionTimer } from '@/components/admin/SessionTimer';
+import { useInventory } from '@/contexts/InventoryContext';
 
 // بيانات الطاولات المتاحة
 const mockTables = [
@@ -43,16 +44,7 @@ const mockHalls = [
     { id: 'h3', name: 'قاعة الحديقة', capacity_min: 20, capacity_max: 100, price_per_hour: 500 },
 ];
 
-// بيانات المنتجات (المخزون) - طعام ومشروبات فقط
-const initialInventoryProducts = [
-    { id: 'p1', name: 'قهوة تركي', type: 'drink' as const, price: 25, stock_quantity: 100 },
-    { id: 'p2', name: 'شاي', type: 'drink' as const, price: 15, stock_quantity: 200 },
-    { id: 'p3', name: 'عصير برتقال', type: 'drink' as const, price: 30, stock_quantity: 50 },
-    { id: 'p4', name: 'نسكافيه', type: 'drink' as const, price: 20, stock_quantity: 80 },
-    { id: 'p5', name: 'ساندويتش جبنة', type: 'food' as const, price: 35, stock_quantity: 30 },
-    { id: 'p6', name: 'كرواسون', type: 'food' as const, price: 25, stock_quantity: 40 },
-    { id: 'p7', name: 'بيتزا صغيرة', type: 'food' as const, price: 45, stock_quantity: 20 },
-];
+// استخدام سياق المخزون المشترك
 
 // أنواع البيانات
 interface TableHistoryEntry {
@@ -270,9 +262,8 @@ export default function SessionsPage() {
     const [paymentDetails, setPaymentDetails] = useState({ cardHolder: '', walletNumber: '', walletOwner: '', cairoomUser: '' }); // تفاصيل الدفع
     const [cairoomWalletBalance, setCairoomWalletBalance] = useState<number | null>(null); // رصيد المحفظة الوهمي
 
-    // حالة المخزون وإيرادات الطلبات
-    const [inventoryProducts, setInventoryProducts] = useState(initialInventoryProducts);
-    const [ordersRevenue, setOrdersRevenue] = useState(0);
+    // استخدام سياق المخزون المشترك
+    const { products: inventoryProducts, ordersRevenue, reduceStock, addOrderRevenue } = useInventory();
 
     // دالة تحميل الفاتورة كـ PDF
     const handleDownloadInvoicePDF = (session: HistorySession) => {
@@ -561,14 +552,15 @@ export default function SessionsPage() {
             return;
         }
 
-        // تحديث المخزون
-        setInventoryProducts(prev => prev.map(p =>
-            p.id === productId ? { ...p, stock_quantity: p.stock_quantity - delta } : p
-        ));
-
-        // تتبع الإيرادات
+        // تحديث المخزون باستخدام السياق المشترك
         if (delta > 0) {
-            setOrdersRevenue(prev => prev + (product.price * delta));
+            const success = reduceStock(productId, delta);
+            if (!success) {
+                toast.error('حدث خطأ في تحديث المخزون');
+                return;
+            }
+            // تتبع الإيرادات
+            addOrderRevenue(product.price * delta);
         }
 
         setActiveSessions(prev => prev.map(s => {

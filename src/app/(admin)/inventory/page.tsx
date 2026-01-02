@@ -61,7 +61,8 @@ import {
     TrendingDown,
     TrendingUp,
 } from 'lucide-react';
-import { Product, ProductType } from '@/types/database';
+import { ProductType } from '@/types/database';
+import { useInventory, InventoryProduct } from '@/contexts/InventoryContext';
 
 // أيقونات الأنواع
 const typeIcons: Record<ProductType, React.ReactNode> = {
@@ -78,28 +79,17 @@ const typeLabels: Record<ProductType, string> = {
     asset: 'أصول',
 };
 
-// بيانات تجريبية
-const mockProducts: Product[] = [
-    { id: '1', name: 'قهوة تركي', type: 'drink', price: 15, cost_price: 5, stock_quantity: 100, image_url: null, is_active: true, created_at: '', updated_at: '' },
-    { id: '2', name: 'نسكافيه', type: 'drink', price: 12, cost_price: 4, stock_quantity: 80, image_url: null, is_active: true, created_at: '', updated_at: '' },
-    { id: '3', name: 'شاي', type: 'drink', price: 8, cost_price: 2, stock_quantity: 200, image_url: null, is_active: true, created_at: '', updated_at: '' },
-    { id: '4', name: 'عصير برتقال', type: 'drink', price: 20, cost_price: 10, stock_quantity: 5, image_url: null, is_active: true, created_at: '', updated_at: '' },
-    { id: '5', name: 'ساندويتش جبنة', type: 'food', price: 25, cost_price: 12, stock_quantity: 30, image_url: null, is_active: true, created_at: '', updated_at: '' },
-    { id: '6', name: 'كرواسون', type: 'food', price: 18, cost_price: 8, stock_quantity: 40, image_url: null, is_active: true, created_at: '', updated_at: '' },
-    { id: '7', name: 'بسكويت', type: 'food', price: 10, cost_price: 4, stock_quantity: 0, image_url: null, is_active: false, created_at: '', updated_at: '' },
-    { id: '8', name: 'منظف زجاج', type: 'cleaning', price: 35, cost_price: 20, stock_quantity: 15, image_url: null, is_active: true, created_at: '', updated_at: '' },
-    { id: '9', name: 'مناديل', type: 'cleaning', price: 15, cost_price: 8, stock_quantity: 8, image_url: null, is_active: true, created_at: '', updated_at: '' },
-    { id: '10', name: 'لابتوب احتياطي', type: 'asset', price: 0, cost_price: 15000, stock_quantity: 2, image_url: null, is_active: true, created_at: '', updated_at: '' },
-];
+// استخدام سياق المخزون المشترك
 
 const LOW_STOCK_THRESHOLD = 10;
 
 export default function InventoryPage() {
-    const [products, setProducts] = useState<Product[]>(mockProducts);
+    // استخدام السياق المشترك
+    const { products, updateProduct, addProduct, deleteProduct, ordersRevenue } = useInventory();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedType, setSelectedType] = useState<ProductType | 'all'>('all');
     const [productModalOpen, setProductModalOpen] = useState(false);
-    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null);
 
     // حالة المنتج الجديد/المعدل
     const [formData, setFormData] = useState({
@@ -141,7 +131,7 @@ export default function InventoryPage() {
         setProductModalOpen(true);
     };
 
-    const handleEditProduct = (product: Product) => {
+    const handleEditProduct = (product: InventoryProduct) => {
         setSelectedProduct(product);
         setFormData({
             name: product.name,
@@ -159,25 +149,24 @@ export default function InventoryPage() {
         if (!formData.name.trim()) return;
 
         if (selectedProduct) {
-            // تعديل
-            setProducts((prev) =>
-                prev.map((p) =>
-                    p.id === selectedProduct.id
-                        ? { ...p, ...formData, updated_at: new Date().toISOString() }
-                        : p
-                )
-            );
+            // تعديل - استخدام دالة السياق
+            updateProduct({
+                ...selectedProduct,
+                ...formData,
+                image_url: formData.image_url || null,
+            });
             toast.success('تم تعديل المنتج بنجاح');
         } else {
-            // إضافة جديدة
-            const newProduct: Product = {
-                id: `product-${Date.now()}`,
-                ...formData,
-                image_url: null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-            };
-            setProducts((prev) => [...prev, newProduct]);
+            // إضافة جديدة - استخدام دالة السياق
+            addProduct({
+                name: formData.name,
+                type: formData.type,
+                price: formData.price,
+                cost_price: formData.cost_price,
+                stock_quantity: formData.stock_quantity,
+                is_active: formData.is_active,
+                image_url: formData.image_url || null,
+            });
             toast.success('تم إضافة المنتج بنجاح');
         }
         setProductModalOpen(false);
@@ -185,7 +174,7 @@ export default function InventoryPage() {
 
     const handleDeleteProduct = (productId: string) => {
         if (confirm('متأكد إنك عايز تحذف المنتج ده؟')) {
-            setProducts((prev) => prev.filter((p) => p.id !== productId));
+            deleteProduct(productId);
             toast.success('تم حذف المنتج');
         }
     };
