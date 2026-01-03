@@ -300,7 +300,7 @@ export default function MembersPage() {
                 // email: editMemberForm.email // Schema doesn't have email yet, check schema
             });
 
-            setMembers(prev => prev.map(m => m.id === selectedMember.id ? updated : m));
+            setMembers(prev => prev.map(m => m.id === selectedMember.id ? (updated as unknown as Member) : m));
             setEditMemberModalOpen(false);
             setSelectedMember(null);
             toast.success('تم تعديل بيانات العضو بنجاح');
