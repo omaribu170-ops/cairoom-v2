@@ -955,7 +955,7 @@ export default function AdminDashboardPage() {
                             );
                             finalTotal = calc.finalTotal;
                             discountAmount = calc.discountAmount;
-                            note = calc.note;
+                            note = calc.note || '';
                         } else if (promocodeScope === 'member' && selectedMemberForPromo) {
                             let totalDiscount = 0;
                             endSessionModal.members.forEach(m => {
