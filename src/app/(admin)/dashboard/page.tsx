@@ -304,7 +304,7 @@ export default function AdminDashboardPage() {
 
         let finalTotal = totals.total;
         let discountAmount = 0;
-        let sessionOrders = [] as any[];
+
 
         // Logic for Promocode Scope
         if (promocodeScope === 'session') {
@@ -327,7 +327,7 @@ export default function AdminDashboardPage() {
 
             let totalDiscount = 0;
             const membersWithBill = endSessionModal.members.map(m => {
-                let bill = getMemberBill(m, endSessionModal.pricePerHour);
+                let bill = getMemberBill(m, endSessionModal.firstHourCost, endSessionModal.remainingHourCost);
                 if (m.id === selectedMemberForPromo) {
                     const promoCalc = calculateSessionTotal(
                         bill.timeCost,
