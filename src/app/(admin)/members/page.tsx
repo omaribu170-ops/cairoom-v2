@@ -94,7 +94,7 @@ export default function MembersPage() {
         const loadMembers = async () => {
             try {
                 const data = await MembersService.getAll();
-                setMembers(data);
+                setMembers(data as unknown as Member[]);
             } catch (error) {
                 console.error('Failed to fetch members:', error);
                 toast.error('فشل في تحميل بيانات الأعضاء');
