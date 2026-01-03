@@ -5,7 +5,7 @@ type SessionInsert = Database['public']['Tables']['sessions']['Insert'];
 type SessionOrderInsert = Database['public']['Tables']['session_orders']['Insert'];
 
 export const SessionsService = {
-    async endSession(sessionData: SessionInsert, orders: SessionOrderInsert[]) {
+    async endSession(sessionData: SessionInsert, orders: Omit<SessionOrderInsert, 'session_id'>[]) {
         const supabase = createClient();
 
         // 1. Create Session

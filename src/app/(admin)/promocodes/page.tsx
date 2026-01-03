@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { TicketPercent, Search, Filter, Plus, Calendar as CalendarIcon, Trash2, Edit } from 'lucide-react';
-import { formatArabicDate, cn } from '@/lib/utils';
+import { formatArabicDate, cn, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
