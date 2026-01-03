@@ -260,7 +260,7 @@ export default function MembersPage() {
                 wallet_balance: 0,
                 role: 'user', // Note: Check if strictly needed by schema default
                 referral_code: `CR-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-            } as any); // Temporary cast until strict types aligned
+            } as any) as unknown as Member; // Temporary cast until strict types aligned
 
             setMembers([newMember, ...members]);
             setAddMemberModalOpen(false);
