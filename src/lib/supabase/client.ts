@@ -4,7 +4,7 @@
    ================================================================= */
 
 import { createBrowserClient } from '@supabase/ssr';
-import type { Database } from '@/types/database';
+import type { Database } from '@/types/supabase-generated';
 
 // Fallback values for development
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
@@ -17,7 +17,7 @@ export const isSupabaseConfigured = () => {
 
 // إنشاء عميل Supabase للمتصفح
 export function createClient() {
-    return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
+    return createBrowserClient(supabaseUrl, supabaseAnonKey);
 }
 
 // عميل مبسط للاستخدام المباشر (lazy initialization)

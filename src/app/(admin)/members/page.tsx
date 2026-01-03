@@ -56,79 +56,24 @@ import {
     Download,
     UserPlus,
 } from 'lucide-react';
-import { User as UserType } from '@/types/database';
+import { Database } from '@/types/supabase-generated';
+import { MembersService } from '@/services/members';
+
+type Member = Database['public']['Tables']['members']['Row'] & {
+    // Temporary shim for fields not yet in schema
+    email?: string | null;
+    gender?: 'male' | 'female';
+    avatar_url?: string | null;
+    role?: 'user';
+    cairoom_wallet_balance?: number; // Legacy alias
+    affiliate_balance?: number;
+    game_stats?: { wins: number; attended: number };
+    updated_at?: string; // Missing in schema?
+};
+
 
 // بيانات تجريبية للأعضاء
-const mockMembers: UserType[] = [
-    {
-        id: '1',
-        full_name: 'أحمد محمد السعيدي',
-        phone: '01012345678',
-        email: 'ahmed@example.com',
-        gender: 'male',
-        role: 'user',
-        cairoom_wallet_balance: 250,
-        affiliate_balance: 75,
-        referral_code: 'CR-ABC123',
-        referred_by: null,
-        avatar_url: null,
-        nickname: 'الفهد',
-        game_stats: { wins: 12, attended: 25 },
-        created_at: '2024-01-15T10:30:00Z',
-        updated_at: '2024-12-28T14:00:00Z',
-    },
-    {
-        id: '2',
-        full_name: 'محمد علي',
-        phone: '01123456789',
-        email: 'mohamed@example.com',
-        gender: 'male',
-        role: 'user',
-        cairoom_wallet_balance: 100,
-        affiliate_balance: 0,
-        referral_code: 'CR-DEF456',
-        referred_by: '1',
-        avatar_url: null,
-        nickname: 'النمر',
-        game_stats: { wins: 5, attended: 15 },
-        created_at: '2024-02-20T15:45:00Z',
-        updated_at: '2024-12-27T10:00:00Z',
-    },
-    {
-        id: '3',
-        full_name: 'سارة أحمد',
-        phone: '01234567890',
-        email: 'sara@example.com',
-        gender: 'female',
-        role: 'user',
-        cairoom_wallet_balance: 500,
-        affiliate_balance: 120,
-        referral_code: 'CR-GHI789',
-        referred_by: null,
-        avatar_url: null,
-        nickname: null,
-        game_stats: { wins: 0, attended: 3 },
-        created_at: '2024-06-10T09:00:00Z',
-        updated_at: '2024-12-25T16:30:00Z',
-    },
-    {
-        id: '4',
-        full_name: 'عمر حسن',
-        phone: '01098765432',
-        email: null,
-        gender: 'male',
-        role: 'user',
-        cairoom_wallet_balance: 0,
-        affiliate_balance: 0,
-        referral_code: 'CR-JKL012',
-        referred_by: '3',
-        avatar_url: null,
-        nickname: 'الصقر',
-        game_stats: { wins: 20, attended: 30 },
-        created_at: '2024-03-05T12:00:00Z',
-        updated_at: '2024-12-29T08:00:00Z',
-    },
-];
+
 
 // سجل زيارات تجريبية
 const mockVisitHistory = [
@@ -140,9 +85,26 @@ const mockVisitHistory = [
 ];
 
 export default function MembersPage() {
-    const [members, setMembers] = useState<UserType[]>(mockMembers);
+    const [members, setMembers] = useState<Member[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    // Fetch members
+    useState(() => {
+        const loadMembers = async () => {
+            try {
+                const data = await MembersService.getAll();
+                setMembers(data);
+            } catch (error) {
+                console.error('Failed to fetch members:', error);
+                toast.error('فشل في تحميل بيانات الأعضاء');
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadMembers();
+    });
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedMember, setSelectedMember] = useState<UserType | null>(null);
+    const [selectedMember, setSelectedMember] = useState<Member | null>(null);
     const [profileModalOpen, setProfileModalOpen] = useState(false);
     const [addMemberModalOpen, setAddMemberModalOpen] = useState(false);
     const [walletAdjustModalOpen, setWalletAdjustModalOpen] = useState(false);
@@ -204,10 +166,10 @@ export default function MembersPage() {
         .sort((a, b) => {
             if (totalHoursSort === 'highest') return getMemberTotalHours(b.id) - getMemberTotalHours(a.id);
             if (totalHoursSort === 'lowest') return getMemberTotalHours(a.id) - getMemberTotalHours(b.id);
-            if (lastVisitSort === 'newest') return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-            if (lastVisitSort === 'oldest') return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
-            if (walletSort === 'highest') return b.cairoom_wallet_balance - a.cairoom_wallet_balance;
-            if (walletSort === 'lowest') return a.cairoom_wallet_balance - b.cairoom_wallet_balance;
+            if (lastVisitSort === 'newest') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            if (lastVisitSort === 'oldest') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+            if (walletSort === 'highest') return (b.wallet_balance || 0) - (a.wallet_balance || 0);
+            if (walletSort === 'lowest') return (a.wallet_balance || 0) - (b.wallet_balance || 0);
             return 0;
         });
 
@@ -219,10 +181,10 @@ export default function MembersPage() {
             'الهاتف': m.phone,
             'البريد الإلكتروني': m.email || '-',
             'الجنس': m.gender === 'male' ? 'ذكر' : 'أنثى',
-            'رصيد المحفظة': m.cairoom_wallet_balance,
+            'رصيد المحفظة': m.wallet_balance || 0,
             'إجمالي الساعات': getMemberTotalHours(m.id),
             'تاريخ الانضمام': formatArabicDate(m.created_at),
-            'آخر زيارة': formatArabicDate(m.updated_at)
+            'آخر زيارة': formatArabicDate(m.created_at)
         }));
 
         import('@/lib/export-utils').then(({ exportToCSV }) => {
@@ -234,17 +196,17 @@ export default function MembersPage() {
     // إحصائيات سريعة
     const stats = {
         total: members.length,
-        activeWallet: members.filter((m) => m.cairoom_wallet_balance > 0).length,
-        gamers: members.filter((m) => m.game_stats.attended > 0).length,
-        totalWalletBalance: members.reduce((sum, m) => sum + m.cairoom_wallet_balance, 0),
+        activeWallet: members.filter((m) => (m.wallet_balance || 0) > 0).length,
+        gamers: members.filter((m) => (m.game_stats?.attended || 0) > 0).length,
+        totalWalletBalance: members.reduce((sum, m) => sum + (m.wallet_balance || 0), 0),
     };
 
-    const handleViewProfile = (member: UserType) => {
+    const handleViewProfile = (member: Member) => {
         setSelectedMember(member);
         setProfileModalOpen(true);
     };
 
-    const handleAdjustWallet = (member: UserType) => {
+    const handleAdjustWallet = (member: Member) => {
         setSelectedMember(member);
         setAdjustmentAmount('');
         setAdjustmentType('add');
@@ -258,12 +220,12 @@ export default function MembersPage() {
         if (isNaN(amount) || amount <= 0) return;
 
         const newBalance = adjustmentType === 'add'
-            ? selectedMember.cairoom_wallet_balance + amount
-            : Math.max(0, selectedMember.cairoom_wallet_balance - amount);
+            ? (selectedMember.wallet_balance || 0) + amount
+            : Math.max(0, (selectedMember.wallet_balance || 0) - amount);
 
         setMembers((prev) =>
             prev.map((m) =>
-                m.id === selectedMember.id ? { ...m, cairoom_wallet_balance: newBalance } : m
+                m.id === selectedMember.id ? { ...m, wallet_balance: newBalance } : m
             )
         );
 
@@ -278,36 +240,38 @@ export default function MembersPage() {
     };
 
     // إضافة عضو جديد
-    const handleAddMember = () => {
+    // إضافة عضو
+    const handleAddNewMember = async () => {
         if (!newMemberForm.full_name || !newMemberForm.phone) {
             toast.error('يرجى إدخال الاسم ورقم الهاتف');
             return;
         }
-        const newMember: UserType = {
-            id: Date.now().toString(),
-            full_name: newMemberForm.full_name,
-            phone: newMemberForm.phone,
-            email: newMemberForm.email || null,
-            gender: newMemberForm.gender,
-            role: 'user',
-            cairoom_wallet_balance: 0,
-            affiliate_balance: 0,
-            referral_code: `CR-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-            referred_by: null,
-            avatar_url: null,
-            nickname: newMemberForm.nickname || null,
-            game_stats: { wins: 0, attended: 0 },
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        };
-        setMembers(prev => [...prev, newMember]);
-        setAddMemberModalOpen(false);
-        setNewMemberForm({ full_name: '', phone: '', email: '', nickname: '', gender: 'male' });
-        toast.success('تم إضافة العضو بنجاح');
+
+        try {
+            const newMember = await MembersService.create({
+                full_name: newMemberForm.full_name,
+                phone: newMemberForm.phone,
+                email: newMemberForm.email || null,
+                gender: newMemberForm.gender,
+                nickname: newMemberForm.nickname || null,
+                membership_tier: 'basic',
+                wallet_balance: 0,
+                role: 'user', // Note: Check if strictly needed by schema default
+                referral_code: `CR-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+            } as any); // Temporary cast until strict types aligned
+
+            setMembers([newMember, ...members]);
+            setAddMemberModalOpen(false);
+            setNewMemberForm({ full_name: '', phone: '', email: '', nickname: '', gender: 'male' });
+            toast.success('تم إضافة العضو بنجاح');
+        } catch (error) {
+            console.error(error);
+            toast.error('حدث خطأ أثناء إضافة العضو');
+        }
     };
 
     // فتح تعديل عضو
-    const handleOpenEditMember = (member: UserType) => {
+    const handleOpenEditMember = (member: Member) => {
         setSelectedMember(member);
         setEditMemberForm({
             full_name: member.full_name,
@@ -319,28 +283,33 @@ export default function MembersPage() {
     };
 
     // حفظ تعديل عضو
-    const handleSaveEditMember = () => {
+    // حفظ تعديل عضو
+    const handleSaveEditMember = async () => {
         if (!selectedMember || !editMemberForm.full_name || !editMemberForm.phone) {
             toast.error('يرجى إدخال الاسم ورقم الهاتف');
             return;
         }
-        setMembers(prev => prev.map(m =>
-            m.id === selectedMember.id ? {
-                ...m,
+
+        try {
+            const updated = await MembersService.update(selectedMember.id, {
                 full_name: editMemberForm.full_name,
                 phone: editMemberForm.phone,
-                email: editMemberForm.email || null,
                 nickname: editMemberForm.nickname || null,
-                updated_at: new Date().toISOString()
-            } : m
-        ));
-        setEditMemberModalOpen(false);
-        setSelectedMember(null);
-        toast.success('تم تعديل بيانات العضو بنجاح');
+                // email: editMemberForm.email // Schema doesn't have email yet, check schema
+            });
+
+            setMembers(prev => prev.map(m => m.id === selectedMember.id ? updated : m));
+            setEditMemberModalOpen(false);
+            setSelectedMember(null);
+            toast.success('تم تعديل بيانات العضو بنجاح');
+        } catch (error) {
+            console.error(error);
+            toast.error('فشل تعديل البيانات');
+        }
     };
 
     // فتح آخر الزيارات
-    const handleOpenLastVisits = (member: UserType) => {
+    const handleOpenLastVisits = (member: Member) => {
         setSelectedMember(member);
         setLastVisitsModalOpen(true);
     };
@@ -350,11 +319,16 @@ export default function MembersPage() {
         return mockVisitHistory.filter(v => v.memberId === memberId).slice(0, 10);
     };
 
-    const handleDeleteMember = (memberId: string) => {
-        // في الواقع سيكون soft delete
+    const handleDeleteMember = async (memberId: string) => {
         if (confirm('متأكد إنك عايز تحذف العضو ده؟')) {
-            setMembers((prev) => prev.filter((m) => m.id !== memberId));
-            toast.success('تم حذف العضو');
+            try {
+                await MembersService.delete(memberId);
+                setMembers((prev) => prev.filter((m) => m.id !== memberId));
+                toast.success('تم حذف العضو');
+            } catch (error) {
+                console.error(error);
+                toast.error('فشل حذف العضو');
+            }
         }
     };
 
@@ -508,8 +482,8 @@ export default function MembersPage() {
                                     {member.email || '—'}
                                 </TableCell>
                                 <TableCell>
-                                    <Badge className={member.cairoom_wallet_balance > 0 ? 'status-available' : 'bg-white/5 text-muted-foreground'}>
-                                        {formatCurrency(member.cairoom_wallet_balance)}
+                                    <Badge className={(member.wallet_balance || 0) > 0 ? 'status-available' : 'bg-white/5 text-muted-foreground'}>
+                                        {formatCurrency(member.wallet_balance || 0)}
                                     </Badge>
                                 </TableCell>
                                 <TableCell>
@@ -518,7 +492,7 @@ export default function MembersPage() {
                                     </Badge>
                                 </TableCell>
                                 <TableCell className="text-muted-foreground">
-                                    {formatArabicDate(member.updated_at)}
+                                    {formatArabicDate(member.created_at)}
                                 </TableCell>
                                 <TableCell>
                                     <DropdownMenu>
@@ -654,13 +628,13 @@ export default function MembersPage() {
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="p-3 rounded-xl bg-white/5">
                                         <p className="text-sm text-muted-foreground">البطولات المشارك فيها</p>
-                                        <p className="text-lg font-bold">{selectedMember.game_stats.attended}</p>
+                                        <p className="text-lg font-bold">{selectedMember.game_stats?.attended || 0}</p>
                                     </div>
                                     <div className="p-3 rounded-xl bg-white/5">
                                         <p className="text-sm text-muted-foreground">عدد الانتصارات</p>
                                         <p className="text-lg font-bold flex items-center gap-1">
                                             <Trophy className="h-4 w-4 text-yellow-400" />
-                                            {selectedMember.game_stats.wins}
+                                            {selectedMember.game_stats?.wins || 0}
                                         </p>
                                     </div>
                                 </div>
@@ -676,13 +650,13 @@ export default function MembersPage() {
                                     <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                                         <p className="text-sm text-muted-foreground">رصيد CAIROOM</p>
                                         <p className="text-lg font-bold text-emerald-400">
-                                            {formatCurrency(selectedMember.cairoom_wallet_balance)}
+                                            {formatCurrency(selectedMember.wallet_balance || 0)}
                                         </p>
                                     </div>
                                     <div className="p-3 rounded-xl bg-[#F18A21]/10 border border-[#F18A21]/20">
                                         <p className="text-sm text-muted-foreground">رصيد الإحالة</p>
                                         <p className="text-lg font-bold text-[#F18A21]">
-                                            {formatCurrency(selectedMember.affiliate_balance)}
+                                            {formatCurrency(selectedMember.affiliate_balance || 0)}
                                         </p>
                                     </div>
                                 </div>
@@ -711,7 +685,7 @@ export default function MembersPage() {
                     <DialogHeader>
                         <DialogTitle className="gradient-text text-xl">تعديل رصيد المحفظة</DialogTitle>
                         <DialogDescription>
-                            {selectedMember?.full_name} • الرصيد الحالي: {formatCurrency(selectedMember?.cairoom_wallet_balance || 0)}
+                            {selectedMember?.full_name} • الرصيد الحالي: {formatCurrency(selectedMember?.wallet_balance || 0)}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -753,8 +727,8 @@ export default function MembersPage() {
                                     <span className="font-bold">
                                         {formatCurrency(
                                             adjustmentType === 'add'
-                                                ? (selectedMember?.cairoom_wallet_balance || 0) + parseFloat(adjustmentAmount)
-                                                : Math.max(0, (selectedMember?.cairoom_wallet_balance || 0) - parseFloat(adjustmentAmount))
+                                                ? (selectedMember?.wallet_balance || 0) + parseFloat(adjustmentAmount)
+                                                : Math.max(0, (selectedMember?.wallet_balance || 0) - parseFloat(adjustmentAmount))
                                         )}
                                     </span>
                                 </div>
@@ -831,7 +805,7 @@ export default function MembersPage() {
                         <Button variant="ghost" className="glass-button" onClick={() => setAddMemberModalOpen(false)}>
                             إلغاء
                         </Button>
-                        <Button className="gradient-button" onClick={handleAddMember}>
+                        <Button className="gradient-button" onClick={handleAddNewMember}>
                             <UserPlus className="h-4 w-4 ml-2" />
                             إضافة العضو
                         </Button>

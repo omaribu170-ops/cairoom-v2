@@ -26,6 +26,7 @@ import {
     Menu,
     X,
     Play,
+    TicketPercent,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -80,6 +81,11 @@ const menuItems = [
         title: 'التسويق',
         href: '/marketing',
         icon: Megaphone,
+    },
+    {
+        title: 'أكواد الخصم',
+        href: '/promocodes',
+        icon: TicketPercent,
     },
     {
         title: 'الإعدادات',
