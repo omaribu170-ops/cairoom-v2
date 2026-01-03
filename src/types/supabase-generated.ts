@@ -14,48 +14,33 @@ export interface Database {
                     id: string
                     full_name: string
                     phone: string
-                    email: string | null
-                    gender: string | null
                     nickname: string | null
                     full_id_card: string | null
                     address: string | null
                     membership_tier: 'basic' | 'vip' | 'elite'
                     wallet_balance: number
-                    role: string | null
-                    referral_code: string | null
-                    avatar_url: string | null
                     created_at: string
                 }
                 Insert: {
                     id?: string
                     full_name: string
                     phone: string
-                    email?: string | null
-                    gender?: string | null
                     nickname?: string | null
                     full_id_card?: string | null
                     address?: string | null
                     membership_tier?: 'basic' | 'vip' | 'elite'
                     wallet_balance?: number
-                    role?: string | null
-                    referral_code?: string | null
-                    avatar_url?: string | null
                     created_at?: string
                 }
                 Update: {
                     id?: string
                     full_name?: string
                     phone?: string
-                    email?: string | null
-                    gender?: string | null
                     nickname?: string | null
                     full_id_card?: string | null
                     address?: string | null
                     membership_tier?: 'basic' | 'vip' | 'elite'
                     wallet_balance?: number
-                    role?: string | null
-                    referral_code?: string | null
-                    avatar_url?: string | null
                     created_at?: string
                 }
             }

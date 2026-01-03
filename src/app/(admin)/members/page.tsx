@@ -90,19 +90,12 @@ export default function MembersPage() {
 
     // Fetch members
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Fetch members
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
-        const loadMembers = async () => {
-            try {
-                const data = await MembersService.getAll();
-                setMembers(data as unknown as Member[]);
-            } catch (error) {
-                console.error('Failed to fetch members:', error);
-                toast.error('فشل في تحميل بيانات الأعضاء');
-            } finally {
-                setLoading(false);
-            }
-        };
-        loadMembers();
+        // Mock data usage as requested
+        setMembers(mockAllMembers);
+        setLoading(false);
     }, []);
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -260,7 +253,7 @@ export default function MembersPage() {
                 wallet_balance: 0,
                 role: 'user', // Note: Check if strictly needed by schema default
                 referral_code: `CR-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-            } as any) as unknown as Member; // Temporary cast until strict types aligned
+            } as any); // Temporary cast until strict types aligned
 
             setMembers([newMember, ...members]);
             setAddMemberModalOpen(false);
@@ -300,7 +293,7 @@ export default function MembersPage() {
                 // email: editMemberForm.email // Schema doesn't have email yet, check schema
             });
 
-            setMembers(prev => prev.map(m => m.id === selectedMember.id ? (updated as unknown as Member) : m));
+            setMembers(prev => prev.map(m => m.id === selectedMember.id ? updated : m));
             setEditMemberModalOpen(false);
             setSelectedMember(null);
             toast.success('تم تعديل بيانات العضو بنجاح');
