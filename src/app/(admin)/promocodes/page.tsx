@@ -40,8 +40,13 @@ const statusLabels: Record<string, string> = {
     expired: 'منتهي'
 };
 
+import { useInventory } from '@/contexts/InventoryContext';
+
+// ... (imports remain)
+
 export default function PromocodesPage() {
     const { promocodes, addPromocode, deletePromocode } = usePromocodes();
+    const { products } = useInventory(); // Fetch products
 
     // Filters
     const [searchQuery, setSearchQuery] = useState('');
@@ -63,9 +68,14 @@ export default function PromocodesPage() {
         appliesTo: string[]; // 'time', 'orders'
         recurringPay: string;
         recurringFree: string;
+        // Item Config
+        targetItemId: string;
+        itemDiscountType: 'free' | 'percentage' | 'amount';
+        itemDiscountValue: string;
     }>({
         name: '', code: '', description: '', type: 'percentage', validUntil: undefined,
-        percentageValue: '', fixedValue: '', appliesTo: ['time'], recurringPay: '1', recurringFree: '1'
+        percentageValue: '', fixedValue: '', appliesTo: ['time'], recurringPay: '1', recurringFree: '1',
+        targetItemId: '', itemDiscountType: 'free', itemDiscountValue: '0'
     });
 
     const filteredPromocodes = promocodes.filter(p => {
@@ -108,15 +118,27 @@ export default function PromocodesPage() {
                 payHours: Number(newItem.recurringPay),
                 freeHours: Number(newItem.recurringFree)
             };
+        } else if (newItem.type === 'item_discount') {
+            if (!newItem.targetItemId) {
+                toast.error('يرجى اختيار المنتج');
+                return;
+            }
+            finalPromo.itemConfig = {
+                targetItems: [{
+                    itemId: newItem.targetItemId,
+                    type: newItem.itemDiscountType,
+                    value: Number(newItem.itemDiscountValue)
+                }]
+            };
         }
-        // Item logic to be added
 
         addPromocode(finalPromo);
         setIsAddModalOpen(false);
         toast.success('تم إنشاء كود الخصم بنجاح');
         setNewItem({
             name: '', code: '', description: '', type: 'percentage', validUntil: undefined,
-            percentageValue: '', fixedValue: '', appliesTo: ['time'], recurringPay: '1', recurringFree: '1'
+            percentageValue: '', fixedValue: '', appliesTo: ['time'], recurringPay: '1', recurringFree: '1',
+            targetItemId: '', itemDiscountType: 'free', itemDiscountValue: '0'
         });
     };
 
@@ -190,10 +212,24 @@ export default function PromocodesPage() {
                                         <span className="font-bold text-emerald-400">{promo.percentageConfig?.value}%</span>
                                     </div>
                                 )}
-                                {promo.type === 'recurring_offer' && (
+                                {newItem.type === 'recurring_offer' && (
                                     <div className="flex justify-between">
                                         <span>العرض:</span>
                                         <span className="font-bold text-blue-400">ادفع {promo.recurringConfig?.payHours} واحصل على {promo.recurringConfig?.freeHours} مجاناً</span>
+                                    </div>
+                                )}
+                                {promo.type === 'fixed' && (
+                                    <div className="flex justify-between">
+                                        <span>القيمة:</span>
+                                        <span className="font-bold text-emerald-400">{promo.fixedConfig?.value} ج.م</span>
+                                    </div>
+                                )}
+                                {promo.type === 'item_discount' && promo.itemConfig?.targetItems[0] && (
+                                    <div className="flex justify-between">
+                                        <span>خصم منتج:</span>
+                                        <span className="font-bold text-orange-400">
+                                            {promo.itemConfig.targetItems[0].type === 'free' ? 'مجاني' : `${promo.itemConfig.targetItems[0].value} ${promo.itemConfig.targetItems[0].type === 'percentage' ? '%' : 'ج.م'}`}
+                                        </span>
                                     </div>
                                 )}
                                 <div className="flex justify-between text-xs text-muted-foreground pt-2 border-t border-white/10 mt-2">
@@ -286,6 +322,58 @@ export default function PromocodesPage() {
                                         <Input type="number" placeholder="10" className="glass-input"
                                             value={newItem.percentageValue} onChange={e => setNewItem({ ...newItem, percentageValue: e.target.value })} />
                                     </div>
+                                    <div className="space-y-2">
+                                        <Label>يطبق على</Label>
+                                        <div className="flex gap-2 text-sm mt-2">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" checked={newItem.appliesTo.includes('time')}
+                                                    onChange={e => e.target.checked
+                                                        ? setNewItem({ ...newItem, appliesTo: [...newItem.appliesTo, 'time'] })
+                                                        : setNewItem({ ...newItem, appliesTo: newItem.appliesTo.filter(t => t !== 'time') })}
+                                                    className="accent-primary" />
+                                                الوقت
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" checked={newItem.appliesTo.includes('orders')}
+                                                    onChange={e => e.target.checked
+                                                        ? setNewItem({ ...newItem, appliesTo: [...newItem.appliesTo, 'orders'] })
+                                                        : setNewItem({ ...newItem, appliesTo: newItem.appliesTo.filter(t => t !== 'orders') })}
+                                                    className="accent-primary" />
+                                                الطلبات
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {newItem.type === 'fixed' && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>قيمة الخصم (ج.م)</Label>
+                                        <Input type="number" placeholder="50" className="glass-input"
+                                            value={newItem.fixedValue} onChange={e => setNewItem({ ...newItem, fixedValue: e.target.value })} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>يطبق على</Label>
+                                        <div className="flex gap-2 text-sm mt-2">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" checked={newItem.appliesTo.includes('time')}
+                                                    onChange={e => e.target.checked
+                                                        ? setNewItem({ ...newItem, appliesTo: [...newItem.appliesTo, 'time'] })
+                                                        : setNewItem({ ...newItem, appliesTo: newItem.appliesTo.filter(t => t !== 'time') })}
+                                                    className="accent-primary" />
+                                                الوقت
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" checked={newItem.appliesTo.includes('orders')}
+                                                    onChange={e => e.target.checked
+                                                        ? setNewItem({ ...newItem, appliesTo: [...newItem.appliesTo, 'orders'] })
+                                                        : setNewItem({ ...newItem, appliesTo: newItem.appliesTo.filter(t => t !== 'orders') })}
+                                                    className="accent-primary" />
+                                                الطلبات
+                                            </label>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 
@@ -302,6 +390,42 @@ export default function PromocodesPage() {
                                             value={newItem.recurringFree} onChange={e => setNewItem({ ...newItem, recurringFree: e.target.value })} />
                                     </div>
                                     <p className="col-span-2 text-xs text-muted-foreground">مثال: لكل ساعة يدفعها العميل، يحصل على ساعتين مجاناً.</p>
+                                </div>
+                            )}
+
+                            {newItem.type === 'item_discount' && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2 col-span-2">
+                                        <Label>اختر المنتج</Label>
+                                        <Select value={newItem.targetItemId} onValueChange={(v) => setNewItem({ ...newItem, targetItemId: v })}>
+                                            <SelectTrigger className="glass-input">
+                                                <SelectValue placeholder="اختر من المخزون" />
+                                            </SelectTrigger>
+                                            <SelectContent className="glass-modal max-h-48">
+                                                {products.map(p => (
+                                                    <SelectItem key={p.id} value={p.id}>{p.name} ({formatCurrency(p.price)})</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>نوع الخصم</Label>
+                                        <Select value={newItem.itemDiscountType} onValueChange={(v: any) => setNewItem({ ...newItem, itemDiscountType: v })}>
+                                            <SelectTrigger className="glass-input"><SelectValue /></SelectTrigger>
+                                            <SelectContent className="glass-modal">
+                                                <SelectItem value="free">مجاني (Free)</SelectItem>
+                                                <SelectItem value="percentage">نسبة (%)</SelectItem>
+                                                <SelectItem value="amount">مبلغ ثابت (ج.م)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    {newItem.itemDiscountType !== 'free' && (
+                                        <div className="space-y-2">
+                                            <Label>القيمة</Label>
+                                            <Input type="number" className="glass-input"
+                                                value={newItem.itemDiscountValue} onChange={e => setNewItem({ ...newItem, itemDiscountValue: e.target.value })} />
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

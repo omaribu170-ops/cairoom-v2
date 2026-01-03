@@ -28,6 +28,7 @@ import {
 import { SessionTimer } from '@/components/admin/SessionTimer';
 import { toast } from 'sonner';
 import { useInventory } from '@/contexts/InventoryContext';
+import { SessionsService } from '@/services/sessions';
 
 // أنواع الفترات الزمنية
 type TimePeriod = 'day' | 'week' | 'month' | 'halfyear' | 'year' | 'custom';
@@ -291,7 +292,8 @@ export default function AdminDashboardPage() {
 
     // إنهاء الجلسة
     // إنهاء الجلسة
-    const handleEndSession = () => {
+    // إنهاء الجلسة
+    const handleEndSession = async () => {
         if (!endSessionModal) return;
 
         const totals = getSessionTotal(endSessionModal);
@@ -307,11 +309,48 @@ export default function AdminDashboardPage() {
         if (paymentMethod === 'cairoom' && !paymentDetails.cairoomUser) return toast.error('يرجى اختيار العضو صاحب المحفظة');
         if (paymentMethod === 'cairoom' && cairoomWalletBalance !== null && finalTotal > cairoomWalletBalance) return toast.error('الرصيد غير كافي');
 
-        setActiveSessions(activeSessions.filter(s => s.id !== endSessionModal.id));
+        // Prepare data for saving
+        const now = new Date().toISOString();
+        const sessionData = {
+            table_id: endSessionModal.type === 'table' ? parseInt(endSessionModal.tableId) : null,
+            // For hall, we might store primary table ID or handle differently. Schema expects int reference.
+            // If tableId is not int (e.g., 'h1'), we skip or map.
+            start_time: endSessionModal.startTime,
+            end_time: now,
+            duration_minutes: Math.floor((new Date(now).getTime() - new Date(endSessionModal.startTime).getTime()) / 60000),
+            session_cost: totals.timeCost,
+            orders_cost: totals.ordersCost,
+            total_amount: totals.total,
+            discount_amount: discountAmount,
+            promocode_code: appliedPromocode?.code,
+            final_total: finalTotal,
+            status: 'completed',
+            payment_method: paymentMethod,
+        };
 
-        const discountMsg = discountAmount > 0 ? ` (بعد خصم ${formatCurrency(discountAmount)})` : '';
-        toast.success(`تم إنهاء الجلسة بمبلغ ${formatCurrency(finalTotal)}${discountMsg}`);
-        closeEndSessionModal();
+        const sessionOrders = endSessionModal.members.flatMap(m =>
+            m.orders.map(o => ({
+                product_id: o.productId,
+                quantity: o.quantity,
+                price_at_time: o.price,
+                total_price: o.quantity * o.price
+            }))
+        );
+
+        try {
+            await SessionsService.endSession(sessionData, sessionOrders);
+            setActiveSessions(activeSessions.filter(s => s.id !== endSessionModal.id));
+
+            const discountMsg = discountAmount > 0 ? ` (بعد خصم ${formatCurrency(discountAmount)})` : '';
+            toast.success(`تم إنهاء الجلسة وحفظها بمبلغ ${formatCurrency(finalTotal)}${discountMsg}`);
+            closeEndSessionModal();
+        } catch (error) {
+            console.error('Failed to save session:', error);
+            toast.error('حدث خطأ أثناء حفظ الجلسة - تم الإنهاء محلياً فقط');
+            // Fallback: still remove from UI so user isn't stuck
+            setActiveSessions(activeSessions.filter(s => s.id !== endSessionModal.id));
+            closeEndSessionModal();
+        }
     };
 
     // فتح نافذة إنهاء الجلسة مع تجميد المؤقت

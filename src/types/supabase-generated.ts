@@ -105,6 +105,91 @@ export interface Database {
                     created_at?: string
                 }
             }
+            sessions: {
+                Row: {
+                    id: string
+                    table_id: number | null
+                    customer_name: string | null
+                    member_id: string | null
+                    start_time: string
+                    end_time: string | null
+                    duration_minutes: number
+                    session_cost: number
+                    orders_cost: number
+                    total_amount: number
+                    discount_amount: number
+                    promocode_code: string | null
+                    final_total: number
+                    status: string
+                    payment_method: string | null
+                    created_by: string | null
+                }
+                Insert: {
+                    id?: string
+                    table_id?: number | null
+                    customer_name?: string | null
+                    member_id?: string | null
+                    start_time?: string
+                    end_time?: string | null
+                    duration_minutes?: number
+                    session_cost?: number
+                    orders_cost?: number
+                    total_amount?: number
+                    discount_amount?: number
+                    promocode_code?: string | null
+                    final_total?: number
+                    status?: string
+                    payment_method?: string | null
+                    created_by?: string | null
+                }
+                Update: {
+                    id?: string
+                    table_id?: number | null
+                    customer_name?: string | null
+                    member_id?: string | null
+                    start_time?: string
+                    end_time?: string | null
+                    duration_minutes?: number
+                    session_cost?: number
+                    orders_cost?: number
+                    total_amount?: number
+                    discount_amount?: number
+                    promocode_code?: string | null
+                    final_total?: number
+                    status?: string
+                    payment_method?: string | null
+                    created_by?: string | null
+                }
+            }
+            session_orders: {
+                Row: {
+                    id: string
+                    session_id: string
+                    product_id: string
+                    quantity: number
+                    price_at_time: number
+                    total_price: number
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    session_id: string
+                    product_id: string
+                    quantity: number
+                    price_at_time: number
+                    total_price?: number
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    session_id?: string
+                    product_id?: string
+                    quantity?: number
+                    price_at_time?: number
+                    total_price?: number
+                    created_at?: string
+                }
+            }
         }
         Views: {
             [_ in never]: never

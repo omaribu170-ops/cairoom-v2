@@ -97,6 +97,9 @@ interface HistorySession {
     totalTimeCost: number;
     totalOrdersCost: number;
     grandTotal: number;
+    discountAmount?: number;
+    promocode?: string;
+    finalTotal?: number;
 }
 
 // بيانات تجريبية للأعضاء

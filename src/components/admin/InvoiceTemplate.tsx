@@ -26,6 +26,9 @@ interface InvoiceData {
     totalOrdersCost: number;
     totalTimeCost: number;
     grandTotal: number;
+    discountAmount?: number;
+    promocode?: string;
+    finalTotal?: number;
 }
 
 interface InvoiceTemplateProps {
@@ -257,6 +260,15 @@ export const InvoiceTemplate = forwardRef<HTMLDivElement, InvoiceTemplateProps>(
                                         <span style={{ color: '#64748b' }}>إجمالي الوقت</span>
                                         <span style={{ fontWeight: 600, color: '#0f172a' }}>{formatCurrency(data.totalTimeCost)}</span>
                                     </div>
+                                    {data.discountAmount && data.discountAmount > 0 ? (
+                                        <>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px', marginBottom: '12px', color: '#10b981' }}>
+                                                <span style={{ color: '#059669' }}>خصم ({data.promocode || 'عرض'})</span>
+                                                <span style={{ fontWeight: 600 }}>- {formatCurrency(data.discountAmount)}</span>
+                                            </div>
+                                            <div style={{ borderTop: '1px solid #e2e8f0', margin: '8px 0' }}></div>
+                                        </>
+                                    ) : null}
                                 </div>
                                 <div style={{ borderTop: '1px dashed #e2e8f0', paddingTop: '16px', marginTop: '16px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
