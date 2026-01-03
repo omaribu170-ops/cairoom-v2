@@ -249,6 +249,8 @@ export default function AdminDashboardPage() {
     // Promocode State
     const [promoCodeInput, setPromoCodeInput] = useState('');
     const [appliedPromocode, setAppliedPromocode] = useState<any>(null);
+    const [promocodeScope, setPromocodeScope] = useState<'session' | 'member'>('session');
+    const [selectedMemberForPromo, setSelectedMemberForPromo] = useState<string>('');
 
     const [timePeriod, setTimePeriod] = useState<TimePeriod>('day');
     const [customDate, setCustomDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -293,16 +295,57 @@ export default function AdminDashboardPage() {
     // إنهاء الجلسة
     // إنهاء الجلسة
     // إنهاء الجلسة
+    // إنهاء الجلسة
     const handleEndSession = async () => {
         if (!endSessionModal) return;
 
+        // Calculate totals based on scope
         const totals = getSessionTotal(endSessionModal);
-        const { finalTotal, discountAmount } = calculateSessionTotal(
-            totals.timeCost,
-            totals.ordersCost,
-            totals.duration / 60,
-            appliedPromocode
-        );
+
+        let finalTotal = totals.total;
+        let discountAmount = 0;
+        let sessionOrders = [] as any[];
+
+        // Logic for Promocode Scope
+        if (promocodeScope === 'session') {
+            const calc = calculateSessionTotal(
+                totals.timeCost,
+                totals.ordersCost,
+                totals.duration / 60,
+                appliedPromocode
+            );
+            finalTotal = calc.finalTotal;
+            discountAmount = calc.discountAmount;
+        } else if (promocodeScope === 'member' && selectedMemberForPromo) {
+            // If specific member, we only discount THEIR portion, but here for "End Session"
+            // usually "End Session" implies checking out everyone.
+            // If the user wants to apply promo to ONE member during full checkout, 
+            // we calculate that member's discount and subtract from total.
+
+            // However, the requirement is "apply the offer on his cost only".
+            // So we iterate members, find target, apply discount to him, sum up.
+
+            let totalDiscount = 0;
+            const membersWithBill = endSessionModal.members.map(m => {
+                let bill = getMemberBill(m, endSessionModal.pricePerHour);
+                if (m.id === selectedMemberForPromo) {
+                    const promoCalc = calculateSessionTotal(
+                        bill.timeCost,
+                        bill.ordersCost,
+                        bill.duration / 60,
+                        appliedPromocode
+                    );
+                    totalDiscount += promoCalc.discountAmount;
+                    // We don't update member bill structure here deeply, just tracking total discount
+                }
+                return bill;
+            });
+
+            discountAmount = totalDiscount;
+            finalTotal = totals.total - discountAmount;
+        }
+
+        // ... validation checks ...
 
         if (paymentMethod === 'visa' && !paymentDetails.cardHolder) return toast.error('يرجى إدخال اسم صاحب الكارت');
         if (paymentMethod === 'wallet' && (!paymentDetails.walletNumber || !paymentDetails.walletOwner)) return toast.error('يرجى إدخال بيانات المحفظة');
@@ -898,13 +941,39 @@ export default function AdminDashboardPage() {
                     </DialogHeader>
                     {endSessionModal && (() => {
                         const totals = getSessionTotal(endSessionModal);
-                        // Calculate Discount
-                        const { finalTotal, discountAmount, note } = calculateSessionTotal(
-                            totals.timeCost,
-                            totals.ordersCost,
-                            totals.duration / 60,
-                            appliedPromocode
-                        );
+                        // Calculate Discount based on scope
+                        let finalTotal = totals.total;
+                        let discountAmount = 0;
+                        let note = '';
+
+                        if (promocodeScope === 'session') {
+                            const calc = calculateSessionTotal(
+                                totals.timeCost,
+                                totals.ordersCost,
+                                totals.duration / 60,
+                                appliedPromocode
+                            );
+                            finalTotal = calc.finalTotal;
+                            discountAmount = calc.discountAmount;
+                            note = calc.note;
+                        } else if (promocodeScope === 'member' && selectedMemberForPromo) {
+                            let totalDiscount = 0;
+                            endSessionModal.members.forEach(m => {
+                                if (m.id === selectedMemberForPromo) {
+                                    const bill = getMemberBill(m, endSessionModal.firstHourCost, endSessionModal.remainingHourCost);
+                                    const promoCalc = calculateSessionTotal(
+                                        bill.timeCost,
+                                        bill.ordersCost,
+                                        bill.duration / 60,
+                                        appliedPromocode
+                                    );
+                                    totalDiscount += promoCalc.discountAmount;
+                                }
+                            });
+                            discountAmount = totalDiscount;
+                            finalTotal = totals.total - discountAmount;
+                            if (discountAmount > 0) note = 'خصم عضو محدد';
+                        }
 
                         const handleApplyPromocode = () => {
                             const promo = getPromocodeByCode(promoCodeInput);
@@ -993,24 +1062,109 @@ export default function AdminDashboardPage() {
                                 </div>
 
                                 {/* كود الخصم */}
-                                <div className="flex gap-2">
-                                    <div className="relative flex-1">
-                                        <TicketPercent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                        <Input
-                                            placeholder="كود خصم"
-                                            value={promoCodeInput}
-                                            onChange={(e) => setPromoCodeInput(e.target.value)}
-                                            className="glass-input pr-10"
-                                        />
+                                {/* كود الخصم */}
+                                <div className="space-y-4 border-t border-white/10 pt-4">
+                                    <div className="flex items-center justify-between">
+                                        <Label>كود الخصم</Label>
+                                        {appliedPromocode && (
+                                            <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20">
+                                                {appliedPromocode.code}
+                                            </Badge>
+                                        )}
                                     </div>
-                                    <Button variant="ghost" className="glass-button" onClick={handleApplyPromocode}>تطبيق</Button>
+
+                                    {!appliedPromocode ? (
+                                        <div className="flex gap-2">
+                                            <div className="relative flex-1">
+                                                <TicketPercent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                <Input
+                                                    placeholder="أدخل كود الخصم"
+                                                    value={promoCodeInput}
+                                                    onChange={(e) => setPromoCodeInput(e.target.value)}
+                                                    className="glass-input pr-10"
+                                                />
+                                            </div>
+                                            <Button
+                                                onClick={handleApplyPromocode}
+                                                disabled={!promoCodeInput}
+                                                className="bg-[#E63E32] hover:bg-[#E63E32]/90"
+                                            >
+                                                تطبيق
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-2 p-2 rounded bg-emerald-500/10 border border-emerald-500/20">
+                                                <TicketPercent className="h-4 w-4 text-emerald-400" />
+                                                <span className="text-sm text-emerald-400">
+                                                    تم تطبيق {appliedPromocode.code}
+                                                </span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6 mr-auto hover:bg-red-500/20 hover:text-red-400"
+                                                    onClick={() => {
+                                                        setAppliedPromocode(undefined);
+                                                        setPromoCodeInput('');
+                                                        setPromocodeScope('session');
+                                                        setSelectedMemberForPromo('');
+                                                    }}
+                                                >
+                                                    <X className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+
+                                            {/* Scope Selection */}
+                                            <div className="space-y-2">
+                                                <Label className="text-xs text-muted-foreground">تطبيق الخصم على:</Label>
+                                                <div className="flex gap-4">
+                                                    <label className="flex items-center gap-2 cursor-pointer">
+                                                        <input
+                                                            type="radio"
+                                                            name="promoScope"
+                                                            checked={promocodeScope === 'session'}
+                                                            onChange={() => setPromocodeScope('session')}
+                                                            className="accent-[#E63E32]"
+                                                        />
+                                                        <span className="text-sm">كامل الجلسة</span>
+                                                    </label>
+                                                    <label className="flex items-center gap-2 cursor-pointer">
+                                                        <input
+                                                            type="radio"
+                                                            name="promoScope"
+                                                            checked={promocodeScope === 'member'}
+                                                            onChange={() => {
+                                                                setPromocodeScope('member');
+                                                                if (endSessionModal?.members.length > 0) {
+                                                                    // Only pick members still in session (not left)
+                                                                    const activeMembers = endSessionModal.members.filter(m => !m.leftAt);
+                                                                    if (activeMembers.length > 0) {
+                                                                        setSelectedMemberForPromo(activeMembers[0].id);
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="accent-[#E63E32]"
+                                                        />
+                                                        <span className="text-sm">عضو محدد</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            {promocodeScope === 'member' && (
+                                                <Select value={selectedMemberForPromo} onValueChange={setSelectedMemberForPromo}>
+                                                    <SelectTrigger className="glass-input">
+                                                        <SelectValue placeholder="اختر العضو" />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="glass-modal">
+                                                        {endSessionModal?.members.filter(m => !m.leftAt).map(m => (
+                                                            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
-                                {appliedPromocode && (
-                                    <div className="text-xs text-emerald-400 bg-emerald-400/10 p-2 rounded flex justify-between items-center mb-2">
-                                        <span>{appliedPromocode.name}</span>
-                                        <Button variant="ghost" size="sm" className="h-4 w-4 p-0 text-red-400" onClick={() => { setAppliedPromocode(null); setPromoCodeInput(''); }}>ELGHA</Button>
-                                    </div>
-                                )}
 
                                 {/* طريقة الدفع */}
                                 <div className="space-y-3">

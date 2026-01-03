@@ -21,12 +21,17 @@ import { formatCurrency, cn } from '@/lib/utils';
 import {
     Play, Square, UserPlus, UserMinus, Search, Clock, Eye,
     CreditCard, Wallet, Smartphone, Banknote, ArrowLeftRight,
-    Plus, Coffee, Minus, X, Building2, ShoppingBag, CheckCircle2, AlertCircle, Download
+    Play, Square, UserPlus, UserMinus, Search, Clock, Eye,
+    CreditCard, Wallet, Smartphone, Banknote, ArrowLeftRight,
+    Plus, Coffee, Minus, X, Building2, ShoppingBag, CheckCircle2, AlertCircle, Download, TicketPercent
 } from 'lucide-react';
 import { SessionTimer } from '@/components/admin/SessionTimer';
 import { useInventory } from '@/contexts/InventoryContext';
 import { InvoiceTemplate } from '@/components/admin/InvoiceTemplate';
+import { InvoiceTemplate } from '@/components/admin/InvoiceTemplate';
 import { generatePDFFromElement } from '@/lib/generatePDF';
+import { usePromocodes } from '@/contexts/PromocodeContext';
+import { calculateSessionTotal } from '@/lib/promocode-utils';
 
 // بيانات الطاولات المتاحة
 const mockTables = [
@@ -266,6 +271,13 @@ export default function SessionsPage() {
     const [paymentDetails, setPaymentDetails] = useState({ cardHolder: '', walletNumber: '', walletOwner: '', cairoomUser: '' }); // تفاصيل الدفع
     const [cairoomWalletBalance, setCairoomWalletBalance] = useState<number | null>(null); // رصيد المحفظة الوهمي
 
+    // Promocode State
+    const { getPromocodeByCode } = usePromocodes();
+    const [promoCodeInput, setPromoCodeInput] = useState('');
+    const [appliedPromocode, setAppliedPromocode] = useState<any>(null);
+    const [promocodeScope, setPromocodeScope] = useState<'session' | 'member'>('session');
+    const [selectedMemberForPromo, setSelectedMemberForPromo] = useState<string>('');
+
     // استخدام سياق المخزون المشترك
     const { products: inventoryProducts, ordersRevenue, reduceStock, addOrderRevenue, getOrderableProducts } = useInventory();
 
@@ -370,7 +382,27 @@ export default function SessionsPage() {
         if (paymentMethod === 'visa' && !paymentDetails.cardHolder) return toast.error('يرجى إدخال اسم صاحب الكارت');
         if (paymentMethod === 'wallet' && (!paymentDetails.walletNumber || !paymentDetails.walletOwner)) return toast.error('يرجى إدخال بيانات المحفظة');
         if (paymentMethod === 'cairoom' && !paymentDetails.cairoomUser) return toast.error('يرجى اختيار العضو صاحب المحفظة');
-        if (paymentMethod === 'cairoom' && cairoomWalletBalance !== null && getSessionTotal(endSessionModal).total > cairoomWalletBalance) return toast.error('الرصيد غير كافي');
+        // Calculate totals based on scope for validation
+        const totals = getSessionTotal(endSessionModal);
+
+        // Logic for Promocode Scope Validation
+        let finalTotalToCheck = totals.total;
+        if (promocodeScope === 'session') {
+            const calc = calculateSessionTotal(totals.timeCost, totals.ordersCost, totals.duration / 60, appliedPromocode);
+            finalTotalToCheck = calc.finalTotal;
+        } else if (promocodeScope === 'member' && selectedMemberForPromo) {
+            let totalDiscount = 0;
+            endSessionModal.members.forEach(m => {
+                if (m.id === selectedMemberForPromo) {
+                    const bill = getMemberBill(m, endSessionModal.pricePerHour);
+                    const promoCalc = calculateSessionTotal(bill.timeCost, bill.ordersCost, bill.duration / 60, appliedPromocode);
+                    totalDiscount += promoCalc.discountAmount;
+                }
+            });
+            finalTotalToCheck = totals.total - totalDiscount;
+        }
+
+        if (paymentMethod === 'cairoom' && cairoomWalletBalance !== null && finalTotalToCheck > cairoomWalletBalance) return toast.error('الرصيد غير كافي');
 
         const now = new Date().toISOString();
         const finalSession = {
@@ -399,7 +431,11 @@ export default function SessionsPage() {
         if (paymentMethod === 'visa' && !paymentDetails.cardHolder) return toast.error('يرجى إدخال اسم صاحب الكارت');
         if (paymentMethod === 'wallet' && (!paymentDetails.walletNumber || !paymentDetails.walletOwner)) return toast.error('يرجى إدخال بيانات المحفظة');
         if (paymentMethod === 'cairoom' && !paymentDetails.cairoomUser) return toast.error('يرجى اختيار العضو صاحب المحفظة');
-        if (paymentMethod === 'cairoom' && cairoomWalletBalance !== null && getMemberBill(member, session.pricePerHour).total > cairoomWalletBalance) return toast.error('الرصيد غير كافي');
+
+        const bill = getMemberBill(member, session.pricePerHour);
+        const { finalTotal } = calculateSessionTotal(bill.timeCost, bill.ordersCost, bill.duration / 60, appliedPromocode);
+
+        if (paymentMethod === 'cairoom' && cairoomWalletBalance !== null && finalTotal > cairoomWalletBalance) return toast.error('الرصيد غير كافي');
 
 
         const bill = getMemberBill(member, session.pricePerHour);
@@ -915,134 +951,295 @@ export default function SessionsPage() {
                         <DialogDescription>{endSessionModal?.tableName}</DialogDescription>
                     </DialogHeader>
                     {endSessionModal && (() => {
-                        const totals = getSessionTotal(endSessionModal);
-                        return (
-                            <div className="space-y-4 py-4">
-                                {endSessionModal.tableHistory.length > 1 && (
-                                    <div className="glass-card p-3">
-                                        <p className="text-xs text-muted-foreground mb-2">الطاولات المستخدمة:</p>
-                                        <div className="flex flex-wrap gap-1">
-                                            {endSessionModal.tableHistory.map((th, i) => <Badge key={i} variant="outline" className="text-xs">{th.tableName}</Badge>)}
-                                        </div>
-                                    </div>
-                                )}
-                                <div className="glass-card p-4 space-y-3">
-                                    {endSessionModal.members.filter(m => !m.leftAt).map(member => {
-                                        const bill = getMemberBill(member, endSessionModal.pricePerHour);
-                                        return (
-                                            <div key={member.id} className="flex items-center justify-between text-sm">
-                                                <span>{member.name}</span><span>{formatCurrency(bill.total)}</span>
-                                            </div>
-                                        );
-                                    })}
-                                    <div className="border-t border-white/10 pt-2 space-y-1 text-sm">
-                                        <div className="flex justify-between"><span>تكلفة الوقت</span><span>{formatCurrency(totals.timeCost)}</span></div>
-                                        <div className="flex justify-between"><span>تكلفة الطلبات</span><span>{formatCurrency(totals.ordersCost)}</span></div>
-                                    </div>
-                                    <div className="border-t border-white/10 pt-2 flex justify-between font-bold">
-                                        <span>الإجمالي</span><span className="gradient-text text-lg">{formatCurrency(totals.total)}</span>
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <div className="space-y-3">
-                                        <Label>طريقة الدفع</Label>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {[{ id: 'cash', label: 'كاش', icon: Banknote }, { id: 'visa', label: 'كارت', icon: CreditCard },
-                                            { id: 'wallet', label: 'محفظة موبيل', icon: Smartphone }, { id: 'cairoom', label: 'محفظة CAIROOM', icon: Wallet }].map(method => (
-                                                <Button key={method.id} variant="ghost" className={cn('glass-button h-12 justify-start', paymentMethod === method.id && 'bg-[#F18A21]/20 border-[#F18A21]')}
-                                                    onClick={() => {
-                                                        setPaymentMethod(method.id);
-                                                        setCairoomWalletBalance(null);
-                                                        // لمن يدفع الجلسة كاملة، نفترض أول عضو هو الدافع افتراضياً أو نطلب البحث
-                                                        if (method.id === 'cairoom' && endSessionModal.members.length > 0) {
-                                                            const firstMember = endSessionModal.members.find(m => !m.leftAt);
-                                                            if (firstMember) {
-                                                                setPaymentDetails({ ...paymentDetails, cairoomUser: firstMember.id });
-                                                                handleCheckCairoomBalance(firstMember.id);
-                                                            }
-                                                        }
-                                                    }}>
-                                                    <method.icon className="h-4 w-4 ml-2" />
-                                                    {method.label}
-                                                </Button>
-                                            ))}
-                                        </div>
+                        {
+                            endSessionModal && (() => {
+                                const totals = getSessionTotal(endSessionModal);
 
-                                        {/* تفاصيل الفيزا */}
-                                        {paymentMethod === 'visa' && (
-                                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                                                <Label>اسم صاحب الكارت</Label>
-                                                <Input
-                                                    className="glass-input"
-                                                    placeholder="الاسم المكتوب على الكارت"
-                                                    value={paymentDetails.cardHolder}
-                                                    onChange={(e) => setPaymentDetails({ ...paymentDetails, cardHolder: e.target.value })}
-                                                />
-                                            </div>
-                                        )}
+                                // Calculate Discount based on scope
+                                let finalTotal = totals.total;
+                                let discountAmount = 0;
+                                let note = '';
 
-                                        {/* تفاصيل محفظة الموبايل */}
-                                        {paymentMethod === 'wallet' && (
-                                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <div>
-                                                        <Label>اسم صاحب المحفظة</Label>
-                                                        <Input
-                                                            className="glass-input"
-                                                            placeholder="الاسم"
-                                                            value={paymentDetails.walletOwner}
-                                                            onChange={(e) => setPaymentDetails({ ...paymentDetails, walletOwner: e.target.value })}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <Label>رقم المحفظة</Label>
-                                                        <Input
-                                                            className="glass-input"
-                                                            placeholder="01xxxxxxxxx"
-                                                            value={paymentDetails.walletNumber}
-                                                            onChange={(e) => setPaymentDetails({ ...paymentDetails, walletNumber: e.target.value })}
-                                                        />
-                                                    </div>
+                                if (promocodeScope === 'session') {
+                                    const calc = calculateSessionTotal(
+                                        totals.timeCost,
+                                        totals.ordersCost,
+                                        totals.duration / 60,
+                                        appliedPromocode
+                                    );
+                                    finalTotal = calc.finalTotal;
+                                    discountAmount = calc.discountAmount;
+                                    note = calc.note;
+                                } else if (promocodeScope === 'member' && selectedMemberForPromo) {
+                                    let totalDiscount = 0;
+                                    endSessionModal.members.forEach(m => {
+                                        if (m.id === selectedMemberForPromo) {
+                                            const bill = getMemberBill(m, endSessionModal.pricePerHour);
+                                            const promoCalc = calculateSessionTotal(
+                                                bill.timeCost,
+                                                bill.ordersCost,
+                                                bill.duration / 60,
+                                                appliedPromocode
+                                            );
+                                            totalDiscount += promoCalc.discountAmount;
+                                        }
+                                    });
+                                    discountAmount = totalDiscount;
+                                    finalTotal = totals.total - discountAmount;
+                                    if (discountAmount > 0) note = 'خصم عضو محدد';
+                                }
+
+                                const handleApplyPromocode = () => {
+                                    const promo = getPromocodeByCode(promoCodeInput);
+                                    if (promo && promo.status === 'active') {
+                                        setAppliedPromocode(promo);
+                                        toast.success(`تم تطبيق: ${promo.name}`);
+                                    } else {
+                                        toast.error('كود خطأ أو منتهي');
+                                        setAppliedPromocode(null);
+                                    }
+                                };
+
+                                return (
+                                    <div className="space-y-4 py-4">
+                                        {endSessionModal.tableHistory.length > 1 && (
+                                            <div className="glass-card p-3">
+                                                <p className="text-xs text-muted-foreground mb-2">الطاولات المستخدمة:</p>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {endSessionModal.tableHistory.map((th, i) => <Badge key={i} variant="outline" className="text-xs">{th.tableName}</Badge>)}
                                                 </div>
                                             </div>
                                         )}
+                                        <div className="glass-card p-4 space-y-3">
+                                            {endSessionModal.members.filter(m => !m.leftAt).map(member => {
+                                                const bill = getMemberBill(member, endSessionModal.pricePerHour);
+                                                return (
+                                                    <div key={member.id} className="flex items-center justify-between text-sm">
+                                                        <span>{member.name}</span><span>{formatCurrency(bill.total)}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                            <div className="border-t border-white/10 pt-2 space-y-1 text-sm">
+                                                <div className="flex justify-between"><span>تكلفة الوقت</span><span>{formatCurrency(totals.timeCost)}</span></div>
+                                                <div className="flex justify-between"><span>تكلفة الطلبات</span><span>{formatCurrency(totals.ordersCost)}</span></div>
+                                            </div>
 
-                                        {/* تفاصيل محفظة كايروم */}
-                                        {paymentMethod === 'cairoom' && (
-                                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                                                <Label>العضو الذي سيدفع</Label>
-                                                <Select
-                                                    value={paymentDetails.cairoomUser}
-                                                    onValueChange={(val) => {
-                                                        setPaymentDetails({ ...paymentDetails, cairoomUser: val });
-                                                        handleCheckCairoomBalance(val);
-                                                    }}
-                                                >
-                                                    <SelectTrigger className="glass-input"><SelectValue placeholder="اختر العضو" /></SelectTrigger>
-                                                    <SelectContent className="glass-modal">
-                                                        {endSessionModal.members.filter(m => !m.leftAt).map(m => (
-                                                            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                                {cairoomWalletBalance !== null && (
-                                                    <div className={cn("p-2 rounded text-sm flex justify-between items-center",
-                                                        cairoomWalletBalance >= totals.total ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400")}>
-                                                        <span>الرصيد: {formatCurrency(cairoomWalletBalance)}</span>
-                                                        {cairoomWalletBalance < totals.total && <span>رصيد غير كافي</span>}
+                                            {/* Discount Display */}
+                                            {discountAmount > 0 && (
+                                                <div className="flex justify-between text-sm text-emerald-400">
+                                                    <span>خصم ({note || appliedPromocode?.name})</span>
+                                                    <span>- {formatCurrency(discountAmount)}</span>
+                                                </div>
+                                            )}
+
+                                            <div className="border-t border-white/10 pt-2 flex justify-between font-bold">
+                                                <span>الإجمالي</span><span className="gradient-text text-lg">{formatCurrency(finalTotal)}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Promocode & Scope UI */}
+                                        <div className="space-y-4 border-t border-white/10 pt-4">
+                                            <div className="flex items-center justify-between">
+                                                <Label>كود الخصم</Label>
+                                                {appliedPromocode && (
+                                                    <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20">
+                                                        {appliedPromocode.code}
+                                                    </Badge>
+                                                )}
+                                            </div>
+
+                                            {!appliedPromocode ? (
+                                                <div className="flex gap-2">
+                                                    <div className="relative flex-1">
+                                                        <TicketPercent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                        <Input
+                                                            placeholder="أدخل كود الخصم"
+                                                            value={promoCodeInput}
+                                                            onChange={(e) => setPromoCodeInput(e.target.value)}
+                                                            className="glass-input pr-10"
+                                                        />
+                                                    </div>
+                                                    <Button
+                                                        onClick={handleApplyPromocode}
+                                                        disabled={!promoCodeInput}
+                                                        className="bg-[#E63E32] hover:bg-[#E63E32]/90"
+                                                    >
+                                                        تطبيق
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center gap-2 p-2 rounded bg-emerald-500/10 border border-emerald-500/20">
+                                                        <TicketPercent className="h-4 w-4 text-emerald-400" />
+                                                        <span className="text-sm text-emerald-400">
+                                                            تم تطبيق {appliedPromocode.code}
+                                                        </span>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-6 w-6 mr-auto hover:bg-red-500/20 hover:text-red-400"
+                                                            onClick={() => {
+                                                                setAppliedPromocode(undefined);
+                                                                setPromoCodeInput('');
+                                                                setPromocodeScope('session');
+                                                                setSelectedMemberForPromo('');
+                                                            }}
+                                                        >
+                                                            <X className="h-3 w-3" />
+                                                        </Button>
+                                                    </div>
+
+                                                    {/* Scope Selection */}
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs text-muted-foreground">تطبيق الخصم على:</Label>
+                                                        <div className="flex gap-4">
+                                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                                <input
+                                                                    type="radio"
+                                                                    name="promoScope"
+                                                                    checked={promocodeScope === 'session'}
+                                                                    onChange={() => setPromocodeScope('session')}
+                                                                    className="accent-[#E63E32]"
+                                                                />
+                                                                <span className="text-sm">كامل الجلسة</span>
+                                                            </label>
+                                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                                <input
+                                                                    type="radio"
+                                                                    name="promoScope"
+                                                                    checked={promocodeScope === 'member'}
+                                                                    onChange={() => {
+                                                                        setPromocodeScope('member');
+                                                                        if (endSessionModal?.members.length > 0) {
+                                                                            const activeMembers = endSessionModal.members.filter(m => !m.leftAt);
+                                                                            if (activeMembers.length > 0) {
+                                                                                setSelectedMemberForPromo(activeMembers[0].id);
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    className="accent-[#E63E32]"
+                                                                />
+                                                                <span className="text-sm">عضو محدد</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+
+                                                    {promocodeScope === 'member' && (
+                                                        <Select value={selectedMemberForPromo} onValueChange={setSelectedMemberForPromo}>
+                                                            <SelectTrigger className="glass-input">
+                                                                <SelectValue placeholder="اختر العضو" />
+                                                            </SelectTrigger>
+                                                            <SelectContent className="glass-modal">
+                                                                {endSessionModal?.members.filter(m => !m.leftAt).map(m => (
+                                                                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="space-y-3">
+                                                <Label>طريقة الدفع</Label>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {[{ id: 'cash', label: 'كاش', icon: Banknote }, { id: 'visa', label: 'كارت', icon: CreditCard },
+                                                    { id: 'wallet', label: 'محفظة موبيل', icon: Smartphone }, { id: 'cairoom', label: 'محفظة CAIROOM', icon: Wallet }].map(method => (
+                                                        <Button key={method.id} variant="ghost" className={cn('glass-button h-12 justify-start', paymentMethod === method.id && 'bg-[#F18A21]/20 border-[#F18A21]')}
+                                                            onClick={() => {
+                                                                setPaymentMethod(method.id);
+                                                                setCairoomWalletBalance(null);
+                                                                // لمن يدفع الجلسة كاملة، نفترض أول عضو هو الدافع افتراضياً أو نطلب البحث
+                                                                if (method.id === 'cairoom' && endSessionModal.members.length > 0) {
+                                                                    const firstMember = endSessionModal.members.find(m => !m.leftAt);
+                                                                    if (firstMember) {
+                                                                        setPaymentDetails({ ...paymentDetails, cairoomUser: firstMember.id });
+                                                                        handleCheckCairoomBalance(firstMember.id);
+                                                                    }
+                                                                }
+                                                            }}>
+                                                            <method.icon className="h-4 w-4 ml-2" />
+                                                            {method.label}
+                                                        </Button>
+                                                    ))}
+                                                </div>
+
+                                                {/* تفاصيل الفيزا */}
+                                                {paymentMethod === 'visa' && (
+                                                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                                        <Label>اسم صاحب الكارت</Label>
+                                                        <Input
+                                                            className="glass-input"
+                                                            placeholder="الاسم المكتوب على الكارت"
+                                                            value={paymentDetails.cardHolder}
+                                                            onChange={(e) => setPaymentDetails({ ...paymentDetails, cardHolder: e.target.value })}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {/* تفاصيل محفظة الموبايل */}
+                                                {paymentMethod === 'wallet' && (
+                                                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <div>
+                                                                <Label>اسم صاحب المحفظة</Label>
+                                                                <Input
+                                                                    className="glass-input"
+                                                                    placeholder="الاسم"
+                                                                    value={paymentDetails.walletOwner}
+                                                                    onChange={(e) => setPaymentDetails({ ...paymentDetails, walletOwner: e.target.value })}
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <Label>رقم المحفظة</Label>
+                                                                <Input
+                                                                    className="glass-input"
+                                                                    placeholder="01xxxxxxxxx"
+                                                                    value={paymentDetails.walletNumber}
+                                                                    onChange={(e) => setPaymentDetails({ ...paymentDetails, walletNumber: e.target.value })}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* تفاصيل محفظة كايروم */}
+                                                {paymentMethod === 'cairoom' && (
+                                                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                                        <Label>العضو الذي سيدفع</Label>
+                                                        <Select
+                                                            value={paymentDetails.cairoomUser}
+                                                            onValueChange={(val) => {
+                                                                setPaymentDetails({ ...paymentDetails, cairoomUser: val });
+                                                                handleCheckCairoomBalance(val);
+                                                            }}
+                                                        >
+                                                            <SelectTrigger className="glass-input"><SelectValue placeholder="اختر العضو" /></SelectTrigger>
+                                                            <SelectContent className="glass-modal">
+                                                                {endSessionModal.members.filter(m => !m.leftAt).map(m => (
+                                                                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                        {cairoomWalletBalance !== null && (
+                                                            <div className={cn("p-2 rounded text-sm flex justify-between items-center",
+                                                                cairoomWalletBalance >= totals.total ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400")}>
+                                                                <span>الرصيد: {formatCurrency(cairoomWalletBalance)}</span>
+                                                                {cairoomWalletBalance < totals.total && <span>رصيد غير كافي</span>}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
-                                        )}
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                        );
-                    })()}
-                    <DialogFooter className="gap-2">
-                        <Button variant="ghost" className="glass-button" onClick={() => setEndSessionModal(null)}>إلغاء</Button>
-                        <Button className="gradient-button" onClick={handleEndSession}>إنهاء وحفظ</Button>
-                    </DialogFooter>
+                                );
+                            })()
+                        }
+                        <DialogFooter className="gap-2">
+                            <Button variant="ghost" className="glass-button" onClick={() => setEndSessionModal(null)}>إلغاء</Button>
+                            <Button className="gradient-button" onClick={handleEndSession}>إنهاء وحفظ</Button>
+                        </DialogFooter>
                 </DialogContent>
             </Dialog>
 
@@ -1052,17 +1249,65 @@ export default function SessionsPage() {
                     <DialogHeader><DialogTitle className="gradient-text text-xl">إنهاء جلسة العضو</DialogTitle></DialogHeader>
                     {endMemberModal && (() => {
                         const bill = getMemberBill(endMemberModal.member, endMemberModal.session.pricePerHour);
+
+                        // Calculate Discount
+                        const { finalTotal, discountAmount, note } = calculateSessionTotal(
+                            bill.timeCost,
+                            bill.ordersCost,
+                            bill.duration / 60,
+                            appliedPromocode
+                        );
+
+                        const handleApplyPromo = () => {
+                            const promo = getPromocodeByCode(promoCodeInput);
+                            if (promo && promo.status === 'active') {
+                                setAppliedPromocode(promo);
+                                toast.success(`تم تطبيق: ${promo.name}`);
+                            } else {
+                                toast.error('كود خصم غير صالح أو منتهي');
+                                setAppliedPromocode(null);
+                            }
+                        };
+
                         return (
                             <div className="space-y-4 py-4">
                                 <div className="text-center">
                                     <Avatar className="h-16 w-16 mx-auto mb-2"><AvatarFallback className="bg-gradient-to-br from-[#E63E32] to-[#F8C033] text-white text-xl">{endMemberModal.member.name.charAt(0)}</AvatarFallback></Avatar>
                                     <h3 className="font-bold">{endMemberModal.member.name}</h3>
                                 </div>
+
+                                {/* Promocode Input */}
+                                <div className="flex gap-2">
+                                    <div className="relative flex-1">
+                                        <TicketPercent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder="كود خصم"
+                                            value={promoCodeInput}
+                                            onChange={(e) => setPromoCodeInput(e.target.value)}
+                                            className="glass-input pr-10"
+                                        />
+                                    </div>
+                                    <Button size="sm" onClick={handleApplyPromo} className="glass-button">تطبيق</Button>
+                                </div>
+                                {appliedPromocode && (
+                                    <div className="text-xs text-emerald-400 bg-emerald-400/10 p-2 rounded flex justify-between items-center">
+                                        <span>{appliedPromocode.name}</span>
+                                        <Button variant="ghost" size="sm" className="h-4 w-4 p-0 text-red-400" onClick={() => { setAppliedPromocode(null); setPromoCodeInput(''); }}>CANCEL</Button>
+                                    </div>
+                                )}
+
                                 <div className="glass-card p-4 space-y-2 text-sm">
-                                    <div className="flex justify-between"><span>الوقت</span><span>{formatDuration(bill.duration)}</span></div>
-                                    <div className="flex justify-between"><span>تكلفة الوقت</span><span>{formatCurrency(bill.timeCost)}</span></div>
+                                    <div className="flex justify-between"><span>الوقت ({formatDuration(bill.duration)})</span><span>{formatCurrency(bill.timeCost)}</span></div>
                                     <div className="flex justify-between"><span>الطلبات</span><span>{formatCurrency(bill.ordersCost)}</span></div>
-                                    <div className="border-t border-white/10 pt-2 flex justify-between font-bold"><span>الإجمالي</span><span className="gradient-text">{formatCurrency(bill.total)}</span></div>
+
+                                    {discountAmount > 0 && (
+                                        <div className="flex justify-between text-emerald-400">
+                                            <span>خصم ({note || appliedPromocode?.name})</span>
+                                            <span>-{formatCurrency(discountAmount)}</span>
+                                        </div>
+                                    )}
+
+                                    <div className="border-t border-white/10 pt-2 flex justify-between font-bold"><span>الإجمالي</span><span className="gradient-text">{formatCurrency(finalTotal)}</span></div>
                                 </div>
                                 <Button size="sm" variant={paymentMethod === 'cash' ? 'default' : 'ghost'} className={cn(paymentMethod === 'cash' ? 'gradient-button' : 'glass-button', "flex-1")} onClick={() => setPaymentMethod('cash')}>كاش</Button>
                                 <Button size="sm" variant={paymentMethod === 'visa' ? 'default' : 'ghost'} className={cn(paymentMethod === 'visa' ? 'gradient-button' : 'glass-button', "flex-1")} onClick={() => setPaymentMethod('visa')}>كارت</Button>
