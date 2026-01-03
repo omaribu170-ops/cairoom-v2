@@ -21,14 +21,13 @@ import { formatCurrency, cn } from '@/lib/utils';
 import {
     Play, Square, UserPlus, UserMinus, Search, Clock, Eye,
     CreditCard, Wallet, Smartphone, Banknote, ArrowLeftRight,
-    Play, Square, UserPlus, UserMinus, Search, Clock, Eye,
-    CreditCard, Wallet, Smartphone, Banknote, ArrowLeftRight,
+
     Plus, Coffee, Minus, X, Building2, ShoppingBag, CheckCircle2, AlertCircle, Download, TicketPercent
 } from 'lucide-react';
 import { SessionTimer } from '@/components/admin/SessionTimer';
 import { useInventory } from '@/contexts/InventoryContext';
 import { InvoiceTemplate } from '@/components/admin/InvoiceTemplate';
-import { InvoiceTemplate } from '@/components/admin/InvoiceTemplate';
+
 import { generatePDFFromElement } from '@/lib/generatePDF';
 import { usePromocodes } from '@/contexts/PromocodeContext';
 import { calculateSessionTotal } from '@/lib/promocode-utils';
@@ -438,7 +437,7 @@ export default function SessionsPage() {
         if (paymentMethod === 'cairoom' && cairoomWalletBalance !== null && finalTotal > cairoomWalletBalance) return toast.error('الرصيد غير كافي');
 
 
-        const bill = getMemberBill(member, session.pricePerHour);
+
 
         setActiveSessions(activeSessions.map(s => {
             if (s.id !== session.id) return s;
