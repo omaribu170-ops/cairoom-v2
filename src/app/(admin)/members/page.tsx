@@ -91,11 +91,20 @@ export default function MembersPage() {
     // Fetch members
     // eslint-disable-next-line react-hooks/exhaustive-deps
     // Fetch members
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
-        // Mock data usage as requested
-        setMembers(mockAllMembers);
-        setLoading(false);
+        const fetchMembers = async () => {
+            try {
+                setLoading(true);
+                const data = await MembersService.getAll();
+                setMembers(data as Member[]);
+            } catch (error) {
+                console.error('Failed to fetch members:', error);
+                toast.error('فشل تحميل بيانات الأعضاء');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchMembers();
     }, []);
 
     const [searchQuery, setSearchQuery] = useState('');
