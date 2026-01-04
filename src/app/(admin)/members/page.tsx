@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
     Table,
@@ -55,6 +56,9 @@ import {
     Eye,
     Download,
     UserPlus,
+    TicketPercent,
+    UserCog,
+    Users,
 } from 'lucide-react';
 import { Database } from '@/types/supabase-generated';
 import { MembersService } from '@/services/members';
@@ -85,6 +89,7 @@ const mockVisitHistory = [
 ];
 
 export default function MembersPage() {
+    const [activeTab, setActiveTab] = useState('list');
     const [members, setMembers] = useState<Member[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -363,193 +368,218 @@ export default function MembersPage() {
             </div>
 
             {/* شريط الأدوات */}
-            <div className="flex flex-col gap-4">
-                <div className="flex flex-col md:flex-row gap-4">
-                    <div className="relative flex-1">
-                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="ابحث بالاسم، الهاتف، أو الإيميل..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="glass-input pr-10"
-                        />
-                    </div>
-                    <Button variant="ghost" className="glass-button" onClick={handleExportCSV}>
-                        <Download className="h-4 w-4 ml-2" />
-                        تصدير CSV
-                    </Button>
-                    <Button className="gradient-button" onClick={() => setAddMemberModalOpen(true)}>
-                        <UserPlus className="h-4 w-4 ml-2" />
-                        إضافة عضو
-                    </Button>
-                </div>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="glass-card mb-6">
+                    <TabsTrigger value="list" className="gap-2"><Users className="h-4 w-4" />قائمة الأعضاء</TabsTrigger>
+                    <TabsTrigger value="memberships" className="gap-2"><TicketPercent className="h-4 w-4" />العضويات</TabsTrigger>
+                    <TabsTrigger value="roles" className="gap-2"><UserCog className="h-4 w-4" />صلاحيات المستخدمين</TabsTrigger>
+                </TabsList>
 
-                {/* الفلاتر */}
-                <div className="flex flex-wrap gap-2">
-                    {/* فلتر الجنس */}
-                    <select
-                        value={genderFilter}
-                        onChange={(e) => setGenderFilter(e.target.value as 'all' | 'male' | 'female')}
-                        className="glass-input text-sm px-3 py-2 rounded-lg w-auto min-w-[120px]"
-                    >
-                        <option value="all">كل الجنس</option>
-                        <option value="male">ذكر</option>
-                        <option value="female">أنثى</option>
-                    </select>
-
-                    {/* فلتر تاريخ الانضمام */}
-                    <Input
-                        type="date"
-                        value={joinDateFilter}
-                        onChange={(e) => setJoinDateFilter(e.target.value)}
-                        className="glass-input text-sm w-auto"
-                        placeholder="تاريخ الانضمام"
-                    />
-
-                    {/* ترتيب آخر زيارة */}
-                    <select
-                        value={lastVisitSort}
-                        onChange={(e) => { setLastVisitSort(e.target.value as 'newest' | 'oldest' | 'none'); setWalletSort('none'); }}
-                        className="glass-input text-sm px-3 py-2 rounded-lg w-auto min-w-[140px]"
-                    >
-                        <option value="none">آخر زيارة</option>
-                        <option value="newest">الأحدث أولاً</option>
-                        <option value="oldest">الأقدم أولاً</option>
-                    </select>
-
-                    {/* ترتيب رصيد المحفظة */}
-                    <select
-                        value={walletSort}
-                        onChange={(e) => { setWalletSort(e.target.value as 'highest' | 'lowest' | 'none'); setLastVisitSort('none'); }}
-                        className="glass-input text-sm px-3 py-2 rounded-lg w-auto min-w-[140px]"
-                    >
-                        <option value="none">رصيد المحفظة</option>
-                        <option value="highest">الأعلى أولاً</option>
-                        <option value="lowest">الأقل أولاً</option>
-                    </select>
-
-                    {/* ترتيب إجمالي الساعات */}
-                    <select value={totalHoursSort} onChange={(e) => setTotalHoursSort(e.target.value as any)}
-                        className="glass-input rounded-lg px-3 py-2 text-sm border border-white/10 bg-white/5">
-                        <option value="none">إجمالي الساعات</option>
-                        <option value="highest">الأكثر</option>
-                        <option value="lowest">الأقل</option>
-                    </select>
-
-                    {/* زر مسح الفلاتر */}
-                    {(genderFilter !== 'all' || joinDateFilter || lastVisitSort !== 'none' || walletSort !== 'none' || totalHoursSort !== 'none') && (
-                        <Button variant="ghost" size="sm" className="glass-button text-xs"
-                            onClick={() => { setGenderFilter('all'); setJoinDateFilter(''); setLastVisitSort('none'); setWalletSort('none'); setTotalHoursSort('none'); }}>
-                            مسح الفلاتر
+                <TabsContent value="list" className="space-y-6">
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <div className="relative flex-1">
+                            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="ابحث بالاسم، الهاتف، أو الإيميل..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="glass-input pr-10"
+                            />
+                        </div>
+                        <Button variant="ghost" className="glass-button" onClick={handleExportCSV}>
+                            <Download className="h-4 w-4 ml-2" />
+                            تصدير CSV
                         </Button>
-                    )}
-                </div>
-            </div>
-
-            {/* جدول الأعضاء */}
-            <Card className="glass-card overflow-hidden">
-                <Table>
-                    <TableHeader>
-                        <TableRow className="border-white/10 hover:bg-white/5">
-                            <TableHead className="text-right">العضو</TableHead>
-                            <TableHead className="text-right">الهاتف</TableHead>
-                            <TableHead className="text-right">الإيميل</TableHead>
-                            <TableHead className="text-right">رصيد المحفظة</TableHead>
-                            <TableHead className="text-right">إجمالي الساعات</TableHead>
-                            <TableHead className="text-right">آخر زيارة</TableHead>
-                            <TableHead className="text-right w-[80px]">إجراءات</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredMembers.map((member) => (
-                            <TableRow key={member.id} className="border-white/5 hover:bg-white/5">
-                                <TableCell>
-                                    <div className="flex items-center gap-3">
-                                        <Avatar className="h-10 w-10">
-                                            <AvatarImage src={member.avatar_url || ''} />
-                                            <AvatarFallback className="bg-gradient-to-br from-[#E63E32] to-[#F8C033] text-white">
-                                                {member.full_name.charAt(0)}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <div>
-                                            <p className="font-medium">{member.full_name}</p>
-                                            {member.nickname && (
-                                                <p className="text-xs text-muted-foreground">@{member.nickname}</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </TableCell>
-                                <TableCell dir="ltr" className="text-right font-mono">
-                                    {formatPhoneNumber(member.phone)}
-                                </TableCell>
-                                <TableCell className="text-muted-foreground">
-                                    {member.email || '—'}
-                                </TableCell>
-                                <TableCell>
-                                    <Badge className={(member.wallet_balance || 0) > 0 ? 'status-available' : 'bg-white/5 text-muted-foreground'}>
-                                        {formatCurrency(member.wallet_balance || 0)}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell>
-                                    <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                                        {getMemberTotalHours(member.id)} ساعة
-                                    </Badge>
-                                </TableCell>
-                                <TableCell className="text-muted-foreground">
-                                    {formatArabicDate(member.created_at)}
-                                </TableCell>
-                                <TableCell>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="glass-button">
-                                                <MoreHorizontal className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="glass-modal">
-                                            <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem onClick={() => handleViewProfile(member)}>
-                                                <Eye className="ml-2 h-4 w-4" />
-                                                عرض الملف
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => handleAdjustWallet(member)}>
-                                                <Wallet className="ml-2 h-4 w-4" />
-                                                تعديل المحفظة
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => handleOpenEditMember(member)}>
-                                                <Edit className="ml-2 h-4 w-4" />
-                                                تعديل البيانات
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => handleOpenLastVisits(member)}>
-                                                <Clock className="ml-2 h-4 w-4" />
-                                                آخر الزيارات
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem
-                                                className="text-red-400"
-                                                onClick={() => handleDeleteMember(member.id)}
-                                            >
-                                                <Trash2 className="ml-2 h-4 w-4" />
-                                                حذف العضو
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-
-                {filteredMembers.length === 0 && (
-                    <div className="py-12 text-center">
-                        <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium">مفيش أعضاء</h3>
-                        <p className="text-muted-foreground mt-1">
-                            {searchQuery ? 'جرب تبحث بكلمة تانية' : 'اضغط على "إضافة عضو" عشان تضيف أول عضو'}
-                        </p>
+                        <Button className="gradient-button" onClick={() => setAddMemberModalOpen(true)}>
+                            <UserPlus className="h-4 w-4 ml-2" />
+                            إضافة عضو
+                        </Button>
                     </div>
-                )}
-            </Card>
+
+                    {/* الفلاتر */}
+                    <div className="flex flex-wrap gap-2">
+                        {/* فلتر الجنس */}
+                        <select
+                            value={genderFilter}
+                            onChange={(e) => setGenderFilter(e.target.value as 'all' | 'male' | 'female')}
+                            className="glass-input text-sm px-3 py-2 rounded-lg w-auto min-w-[120px]"
+                        >
+                            <option value="all">كل الجنس</option>
+                            <option value="male">ذكر</option>
+                            <option value="female">أنثى</option>
+                        </select>
+
+                        {/* فلتر تاريخ الانضمام */}
+                        <Input
+                            type="date"
+                            value={joinDateFilter}
+                            onChange={(e) => setJoinDateFilter(e.target.value)}
+                            className="glass-input text-sm w-auto"
+                            placeholder="تاريخ الانضمام"
+                        />
+
+                        {/* ترتيب آخر زيارة */}
+                        <select
+                            value={lastVisitSort}
+                            onChange={(e) => { setLastVisitSort(e.target.value as 'newest' | 'oldest' | 'none'); setWalletSort('none'); }}
+                            className="glass-input text-sm px-3 py-2 rounded-lg w-auto min-w-[140px]"
+                        >
+                            <option value="none">آخر زيارة</option>
+                            <option value="newest">الأحدث أولاً</option>
+                            <option value="oldest">الأقدم أولاً</option>
+                        </select>
+
+                        {/* ترتيب رصيد المحفظة */}
+                        <select
+                            value={walletSort}
+                            onChange={(e) => { setWalletSort(e.target.value as 'highest' | 'lowest' | 'none'); setLastVisitSort('none'); }}
+                            className="glass-input text-sm px-3 py-2 rounded-lg w-auto min-w-[140px]"
+                        >
+                            <option value="none">رصيد المحفظة</option>
+                            <option value="highest">الأعلى أولاً</option>
+                            <option value="lowest">الأقل أولاً</option>
+                        </select>
+
+                        {/* ترتيب إجمالي الساعات */}
+                        <select value={totalHoursSort} onChange={(e) => setTotalHoursSort(e.target.value as any)}
+                            className="glass-input rounded-lg px-3 py-2 text-sm border border-white/10 bg-white/5">
+                            <option value="none">إجمالي الساعات</option>
+                            <option value="highest">الأكثر</option>
+                            <option value="lowest">الأقل</option>
+                        </select>
+
+                        {/* زر مسح الفلاتر */}
+                        {(genderFilter !== 'all' || joinDateFilter || lastVisitSort !== 'none' || walletSort !== 'none' || totalHoursSort !== 'none') && (
+                            <Button variant="ghost" size="sm" className="glass-button text-xs"
+                                onClick={() => { setGenderFilter('all'); setJoinDateFilter(''); setLastVisitSort('none'); setWalletSort('none'); setTotalHoursSort('none'); }}>
+                                مسح الفلاتر
+                            </Button>
+                        )}
+                    </div>
+
+
+                    {/* جدول الأعضاء */}
+                    <Card className="glass-card overflow-hidden">
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="border-white/10 hover:bg-white/5">
+                                    <TableHead className="text-right">العضو</TableHead>
+                                    <TableHead className="text-right">الهاتف</TableHead>
+                                    <TableHead className="text-right">الإيميل</TableHead>
+                                    <TableHead className="text-right">رصيد المحفظة</TableHead>
+                                    <TableHead className="text-right">إجمالي الساعات</TableHead>
+                                    <TableHead className="text-right">آخر زيارة</TableHead>
+                                    <TableHead className="text-right w-[80px]">إجراءات</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {filteredMembers.map((member) => (
+                                    <TableRow key={member.id} className="border-white/5 hover:bg-white/5">
+                                        <TableCell>
+                                            <div className="flex items-center gap-3">
+                                                <Avatar className="h-10 w-10">
+                                                    <AvatarImage src={member.avatar_url || ''} />
+                                                    <AvatarFallback className="bg-gradient-to-br from-[#E63E32] to-[#F8C033] text-white">
+                                                        {member.full_name.charAt(0)}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                    <p className="font-medium">{member.full_name}</p>
+                                                    {member.nickname && (
+                                                        <p className="text-xs text-muted-foreground">@{member.nickname}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell dir="ltr" className="text-right font-mono">
+                                            {formatPhoneNumber(member.phone)}
+                                        </TableCell>
+                                        <TableCell className="text-muted-foreground">
+                                            {member.email || '—'}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge className={(member.wallet_balance || 0) > 0 ? 'status-available' : 'bg-white/5 text-muted-foreground'}>
+                                                {formatCurrency(member.wallet_balance || 0)}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                                {getMemberTotalHours(member.id)} ساعة
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-muted-foreground">
+                                            {formatArabicDate(member.created_at)}
+                                        </TableCell>
+                                        <TableCell>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="glass-button">
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="glass-modal">
+                                                    <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem onClick={() => handleViewProfile(member)}>
+                                                        <Eye className="ml-2 h-4 w-4" />
+                                                        عرض الملف
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleAdjustWallet(member)}>
+                                                        <Wallet className="ml-2 h-4 w-4" />
+                                                        تعديل المحفظة
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleOpenEditMember(member)}>
+                                                        <Edit className="ml-2 h-4 w-4" />
+                                                        تعديل البيانات
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleOpenLastVisits(member)}>
+                                                        <Clock className="ml-2 h-4 w-4" />
+                                                        آخر الزيارات
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem
+                                                        className="text-red-400"
+                                                        onClick={() => handleDeleteMember(member.id)}
+                                                    >
+                                                        <Trash2 className="ml-2 h-4 w-4" />
+                                                        حذف العضو
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+
+                        {filteredMembers.length === 0 && (
+                            <div className="py-12 text-center">
+                                <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                                <h3 className="text-lg font-medium">مفيش أعضاء</h3>
+                                <p className="text-muted-foreground mt-1">
+                                    {searchQuery ? 'جرب تبحث بكلمة تانية' : 'اضغط على "إضافة عضو" عشان تضيف أول عضو'}
+                                </p>
+                            </div>
+                        )}
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="memberships">
+                    <Card className="glass-card p-12 text-center">
+                        <TicketPercent className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-medium">نظام العضويات</h3>
+                        <p className="text-muted-foreground mt-2">قريباً: إدارة أنواع العضويات والمدد</p>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="roles">
+                    <Card className="glass-card p-12 text-center">
+                        <UserCog className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-medium">صلاحيات المستخدمين</h3>
+                        <p className="text-muted-foreground mt-2">قريباً: إدارة أدوار وصلاحيات المشرفين</p>
+                    </Card>
+                </TabsContent>
+            </Tabs>
 
             {/* نافذة الملف الشخصي */}
             <Dialog open={profileModalOpen} onOpenChange={setProfileModalOpen}>
@@ -961,6 +991,6 @@ export default function MembersPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 }

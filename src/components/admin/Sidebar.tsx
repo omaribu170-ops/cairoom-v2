@@ -27,6 +27,7 @@ import {
     X,
     Play,
     TicketPercent,
+    Calendar,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -41,6 +42,11 @@ const menuItems = [
         title: 'الطاولات والقاعات',
         href: '/tables',
         icon: Table2,
+    },
+    {
+        title: 'Bookings',
+        href: '/bookings',
+        icon: Calendar,
     },
     {
         title: 'الجلسات',

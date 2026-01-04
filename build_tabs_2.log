@@ -1,0 +1,23 @@
+
+> cairoom-v2@0.1.0 build
+> next build
+
+▲ Next.js 16.1.1 (Turbopack)
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+✓ Compiled successfully in 9.4s
+  Running TypeScript ...
+Failed to compile.
+
+./src/app/(admin)/members/page.tsx:372:66
+Type error: Cannot find name 'Users'. Did you mean 'User'?
+
+[0m [90m 370 |[39m             [33m<[39m[33mTabs[39m value[33m=[39m{activeTab} onValueChange[33m=[39m{setActiveTab}[33m>[39m
+ [90m 371 |[39m                 [33m<[39m[33mTabsList[39m className[33m=[39m[32m"glass-card mb-6"[39m[33m>[39m
+[31m[1m>[22m[39m[90m 372 |[39m                     [33m<[39m[33mTabsTrigger[39m value[33m=[39m[32m"list"[39m className[33m=[39m[32m"gap-2"[39m[33m>[39m[33m<[39m[33mUsers[39m className[33m=[39m[32m"h-4 w-4"[39m [33m/[39m[33m>[39mقائمة الأعضاء[33m<[39m[33m/[39m[33mTabsTrigger[39m[33m>[39m
+ [90m     |[39m                                                                  [31m[1m^[22m[39m
+ [90m 373 |[39m                     [33m<[39m[33mTabsTrigger[39m value[33m=[39m[32m"memberships"[39m className[33m=[39m[32m"gap-2"[39m[33m>[39m[33m<[39m[33mTicketPercent[39m className[33m=[39m[32m"h-4 w-4"[39m [33m/[39m[33m>[39mالعضويات[33m<[39m[33m/[39m[33mTabsTrigger[39m[33m>[39m
+ [90m 374 |[39m                     [33m<[39m[33mTabsTrigger[39m value[33m=[39m[32m"roles"[39m className[33m=[39m[32m"gap-2"[39m[33m>[39m[33m<[39m[33mUserCog[39m className[33m=[39m[32m"h-4 w-4"[39m [33m/[39m[33m>[39mصلاحيات المستخدمين[33m<[39m[33m/[39m[33mTabsTrigger[39m[33m>[39m
+ [90m 375 |[39m                 [33m<[39m[33m/[39m[33mTabsList[39m[33m>[39m[0m
+Next.js build worker exited with code: 1 and signal: null

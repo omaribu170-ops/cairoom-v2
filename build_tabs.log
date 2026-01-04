@@ -1,0 +1,31 @@
+
+> cairoom-v2@0.1.0 build
+> next build
+
+▲ Next.js 16.1.1 (Turbopack)
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+
+> Build error occurred
+Error: Turbopack build failed with 1 errors:
+./src/app/(admin)/members/page.tsx:458:23
+Parsing ecmascript source code failed
+[0m [90m 456 |[39m                         )}
+ [90m 457 |[39m                     [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+[31m[1m>[22m[39m[90m 458 |[39m                 [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+ [90m     |[39m                       [31m[1m^[22m[39m
+[31m[1m>[22m[39m[90m 459 |[39m
+ [90m     |[39m [31m[1m^[22m[39m
+[31m[1m>[22m[39m[90m 460 |[39m                 {[90m/* جدول الأعضاء */[39m}
+ [90m     |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 461 |[39m                 [33m<[39m[33mCard[39m className[33m=[39m[32m"glass-card overflow-hidden"[39m[33m>[39m
+ [90m 462 |[39m                     [33m<[39m[33mTable[39m[33m>[39m
+ [90m 463 |[39m                         [33m<[39m[33mTableHeader[39m[33m>[39m[0m
+
+Expected '</', got 'jsx text (
+
+                )'
+
+
+    at <unknown> (./src/app/(admin)/members/page.tsx:458:23)

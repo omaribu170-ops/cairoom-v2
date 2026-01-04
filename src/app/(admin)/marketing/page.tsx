@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
 import { formatCurrency, formatArabicDate, cn } from '@/lib/utils';
-import { Users, Bell, Check, X, Send, Wallet, Mail, Smartphone, MessageSquare } from 'lucide-react';
+import { Users, Bell, Check, X, Send, Wallet, Mail, Smartphone, MessageSquare, TicketPercent, Share2 } from 'lucide-react';
 
 // Mock withdrawal requests
 const mockWithdrawals = [
@@ -60,6 +60,8 @@ export default function MarketingPage() {
                     <TabsList className="glass-card">
                         <TabsTrigger value="affiliates" className="gap-2"><Users className="h-4 w-4" />طلبات السحب ({pendingCount})</TabsTrigger>
                         <TabsTrigger value="notifications" className="gap-2"><Bell className="h-4 w-4" />الإشعارات</TabsTrigger>
+                        <TabsTrigger value="offers" className="gap-2"><TicketPercent className="h-4 w-4" />العروض والمنشورات</TabsTrigger>
+                        <TabsTrigger value="referral" className="gap-2"><Share2 className="h-4 w-4" />نظام الإحالة</TabsTrigger>
                     </TabsList>
                     <div className="flex-1" />
                     {activeTab === 'affiliates' && pendingCount > 0 && (

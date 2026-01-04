@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { formatCurrency, formatArabicDate, cn } from '@/lib/utils';
-import { ClipboardCheck, Package, Check, X, Clock, AlertTriangle, Plus, Calendar as CalendarIcon, Filter, Eye, Download } from 'lucide-react';
+import { ClipboardCheck, Package, Check, X, Clock, AlertTriangle, Plus, Calendar as CalendarIcon, Filter, Eye, Download, ListChecks } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 
@@ -276,6 +276,7 @@ export default function OperationsPage() {
                     <TabsList className="glass-card">
                         <TabsTrigger value="cleaning" className="gap-2"><ClipboardCheck className="h-4 w-4" />النظافة</TabsTrigger>
                         <TabsTrigger value="requests" className="gap-2"><Package className="h-4 w-4" />الطلبات ({stats.pendingRequests})</TabsTrigger>
+                        <TabsTrigger value="checklist" className="gap-2"><ListChecks className="h-4 w-4" />قائمة المهام اليومية</TabsTrigger>
                     </TabsList>
                     <div className="flex-1" />
                     <div className="flex gap-2">
@@ -542,6 +543,14 @@ export default function OperationsPage() {
                             ))
                         )}
                     </div>
+                </TabsContent>
+
+                <TabsContent value="checklist">
+                    <Card className="glass-card p-12 text-center">
+                        <ListChecks className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-medium">قائمة المهام اليومية</h3>
+                        <p className="text-muted-foreground mt-2">قريباً: قائمة الفتح والإغلاق</p>
+                    </Card>
                 </TabsContent>
             </Tabs>
 
