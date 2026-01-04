@@ -249,7 +249,8 @@ const getSessionTotal = (session: ActiveSession) => {
     });
 
     const ordersCost = session.members.reduce((sum, m) => sum + m.orders.reduce((s, o) => s + (o.price * o.quantity), 0), 0);
-    return { timeCost, ordersCost, total: timeCost + ordersCost };
+    const duration = calculateDuration(session.startTime);
+    return { timeCost, ordersCost, total: timeCost + ordersCost, duration };
 };
 
 export default function SessionsPage() {
@@ -441,7 +442,7 @@ export default function SessionsPage() {
 
         // Prepare session data for saving
         const sessionData = {
-            table_id: endSessionModal.type === 'table' ? endSessionModal.tableId : null, // handle hall logic if needed
+            table_id: endSessionModal.type === 'table' ? parseInt(endSessionModal.tableId) : null, // handle hall logic if needed
             customer_name: endSessionModal.tableName, // Simplified
             member_id: null,
             total_amount: totals.total,
