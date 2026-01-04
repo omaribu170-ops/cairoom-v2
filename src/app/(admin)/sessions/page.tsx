@@ -26,7 +26,6 @@ import {
 import { SessionTimer } from '@/components/admin/SessionTimer';
 import { useInventory } from '@/contexts/InventoryContext';
 import { InvoiceTemplate } from '@/components/admin/InvoiceTemplate';
-import { invoiceTemplate } from '@/components/admin/InvoiceTemplate';
 import { generatePDFFromElement } from '@/lib/generatePDF';
 import { usePromocodes } from '@/contexts/PromocodeContext';
 import { calculateSessionTotal } from '@/lib/promocode-utils';
