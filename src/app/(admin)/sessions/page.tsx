@@ -238,18 +238,31 @@ const calculateTimeCost = (minutes: number, pricePerHour: number) => {
 // حساب إجمالي الجلسة مع tableHistory
 const getSessionTotal = (session: ActiveSession) => {
     let timeCost = 0;
+    let totalMinutes = 0;
     const now = Date.now();
     const activeMembers = session.members.filter(m => !m.leftAt).length;
 
     session.tableHistory.forEach(th => {
         const start = new Date(th.startTime).getTime();
         const end = th.endTime ? new Date(th.endTime).getTime() : now;
-        const hours = (end - start) / (1000 * 60 * 60);
-        timeCost += Math.ceil(hours * th.pricePerHour * activeMembers);
+        const minutes = (end - start) / (1000 * 60);
+        totalMinutes += minutes;
+        const hours = minutes / 60;
+        timeCost += Math.ceil(hours * th.pricePerHour * (activeMembers || 1));
     });
 
     const ordersCost = session.members.reduce((sum, m) => sum + m.orders.reduce((s, o) => s + (o.price * o.quantity), 0), 0);
-    return { timeCost, ordersCost, total: timeCost + ordersCost };
+    return { timeCost, ordersCost, total: timeCost + ordersCost, duration: totalMinutes };
+};
+
+// حساب فاتورة العضو
+const getMemberBill = (member: SessionMember, pricePerHour: number) => {
+    // Note: Assuming simplistic pricing for members here as sessions/page uses simpler logic or mock
+    const duration = calculateDuration(member.joinedAt, member.leftAt || undefined);
+    const hours = duration / 60;
+    const timeCost = Math.ceil(hours * pricePerHour);
+    const ordersCost = member.orders.reduce((sum, o) => sum + (o.price * o.quantity), 0);
+    return { duration, timeCost, ordersCost, total: timeCost + ordersCost };
 };
 
 export default function SessionsPage() {
@@ -386,7 +399,6 @@ export default function SessionsPage() {
 
     // إنهاء الجلسة (Handler for Dialog)
     const handleEndSession = async (
-        memberId: string,
         paymentMethod: string,
         paymentDetails: any,
         discountAmount: number,

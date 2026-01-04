@@ -233,7 +233,7 @@ const getStatsByPeriod = (period: TimePeriod) => {
     return data[period];
 };
 
-import { EndSessionDialog, SessionMember, StandardActiveSession } from '@/components/admin/EndSessionDialog';
+import { EndSessionDialog, SessionMember as DialogSessionMember, StandardActiveSession } from '@/components/admin/EndSessionDialog';
 
 // ... existing imports ...
 
